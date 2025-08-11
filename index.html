@@ -113,7 +113,7 @@
   <div class="app" role="application">
     <header>
       <h1>Drag & Match — MSK Special Tests</h1>
-      <p class="lead" id="modeHint">Drag a <strong>Test</strong> onto its <strong>Body Part</strong>, then the matching <strong>Meaning</strong>. Race the clock!</p>
+      <p class="lead" id="modeHint">Drag (or tap) a <strong>Test</strong> onto its <strong>Body Part</strong>, then the matching <strong>Meaning</strong>. Race the clock!</p>
 
       <div class="controls">
         <button class="btn" id="btn-shuffle">🔀 New Shuffle</button>
@@ -131,6 +131,11 @@
           <option value="180000">3:00</option>
           <option value="300000">5:00</option>
         </select>
+
+        <label class="pill" title="Make the Body Part column match B/C counts">
+          <input type="checkbox" id="toggle-balance" />
+          Balanced columns
+        </label>
 
         <button class="btn" id="btn-share" title="Copy link with current class">🔗 Share class</button>
         <button class="btn" id="btn-clear-select" style="display:none">✖️ Clear selection</button>
@@ -204,10 +209,11 @@
   </div>
 
 <script>
-/* --- Capability detection --- */
-const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+/* ====== Setup & Data ====== */
+const hasPointer = window.PointerEvent !== undefined;
+const isTouchish = matchMedia("(hover: none)").matches || (navigator.maxTouchPoints||0) > 0;
 
-/* --- DATA (Tinel’s removed) --- */
+/* DATA (Tinel’s removed) */
 const DATA = [
   { id:"shoulder-hawkins-imp", A:"Shoulder", B:"Hawkins–Kennedy Test", C:"Screens for subacromial impingement" },
   { id:"shoulder-emptycan-ss", A:"Shoulder", B:"Jobe / Empty Can Test", C:"Assesses supraspinatus tendinopathy or tear" },
@@ -234,7 +240,7 @@ const DATA = [
   { id:"tost-roos", A:"Thoracic Outlet", B:"Roos / EAST", C:"Provocation of TOS symptoms with sustained elevation" },
 ];
 
-/* --- Class code & share --- */
+/* Class code & share */
 const params = new URLSearchParams(location.search);
 const CLASS_CODE = (params.get("class") || "default").trim();
 document.getElementById("classLabel").textContent = `Class: ${CLASS_CODE}`;
@@ -243,10 +249,10 @@ document.getElementById("btn-share").addEventListener("click", async ()=>{
   try{ await navigator.clipboard.writeText(url); toast("✅ Class link copied!"); }catch{ prompt("Copy this link:", url); }
 });
 
-/* --- Local Best key (kept) --- */
+/* Local Best key */
 const LS_KEY_BEST = `mskMatchBestMs__${CLASS_CODE}`;
 
-/* --- State --- */
+/* State */
 const state = {
   tries: 0,
   lockedIds: new Set(),
@@ -255,8 +261,9 @@ const state = {
   nodeMap: { A:[], B:[], C:[] },
   timerRunning:false, tick:null,
   mode:"stopwatch", raceLimitMs:120000, startMs:0, elapsedMs:0,
-  selected: null, // mobile selection { col:'B'|'C', id, node }
-  mistakes: []    // results summary rows
+  selected: null,
+  mistakes: [],
+  balancedA: !isTouchish // desktop default: balance columns; mobile default: dedupe
 };
 
 const $ = s => document.querySelector(s);
@@ -264,10 +271,10 @@ const el = (t,p={},...kids)=>{ const n=Object.assign(document.createElement(t),p
 const shuffle = a => { const b=a.slice(); for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1)); [b[i],b[j]]=[b[j],b[i]];} return b; };
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 
-/* --- Toast --- */
+/* Toast */
 function toast(msg){ const t=$("#toast"); t.textContent=msg; t.className="toast show"; setTimeout(()=>t.className="toast",1400); }
 
-/* --- Time helpers --- */
+/* Time helpers */
 function formatMs(ms){ const p=Math.max(0,ms); const m=Math.floor(p/60000), s=Math.floor((p%60000)/1000), d=Math.floor((p%1000)/100); return `${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}.${d}`; }
 function updateTimeUI(){
   if(state.mode==="stopwatch"){
@@ -294,7 +301,7 @@ function startTimerIfNeeded(){
         clearInterval(state.tick); state.tick=null; state.timerRunning=false;
         $("#time").textContent = "00:00.0";
         toast("⏰ Time up — DNF");
-        showSummary(true); // show results on timeout
+        showSummary(true);
       } else { updateTimeUI(); }
     }
   }, 100);
@@ -307,84 +314,169 @@ function stopTimerAndMaybeSetBest(){
     updateTimeUI();
     const bestRaw = localStorage.getItem(LS_KEY_BEST);
     if(!bestRaw || state.elapsedMs < Number(bestRaw)){ localStorage.setItem(LS_KEY_BEST, String(state.elapsedMs)); toast("🏁 New best time!"); }
-  } else {
-    state.elapsedMs = performance.now() - state.startMs; updateTimeUI();
-  }
+  } else { state.elapsedMs = performance.now() - state.startMs; updateTimeUI(); }
 }
 function resetTimerUI(){ if(state.tick){ clearInterval(state.tick); state.tick=null; } state.timerRunning=false; state.elapsedMs=0; state.startMs=0; updateTimeUI(); }
 
-/* --- Build board --- */
+/* Build board */
 function dedupeByLabel(arr){ const seen=new Set(), out=[]; for(const x of arr){ if(!seen.has(x.label)){ seen.add(x.label); out.push(x); } } return out; }
 function buildBoard(){
   state.tries=0; state.lockedIds.clear();
   state.pairAB.clear(); state.pairAC.clear(); state.revB.clear(); state.revC.clear();
-  state.mistakes = []; // clear previous mistakes
-  clearSelection();
+  state.mistakes = []; clearSelection();
   $("#tries").textContent="0"; $("#score").textContent="0"; $("#total").textContent=String(DATA.length);
   ["A","B","C"].forEach(k=>$("#col-"+k).innerHTML="");
   state.nodeMap={A:[],B:[],C:[]};
   $("#wires").innerHTML=""; defineGradientsOnce();
   resetTimerUI();
 
-  const packA=shuffle(dedupeByLabel(DATA.map(d=>({col:"A", id:`A-${d.A}`, label:d.A}))));
-  const packB=shuffle(DATA.map(d=>({col:"B", id:d.id, label:d.B})));
-  const packC=shuffle(DATA.map(d=>({col:"C", id:d.id, label:d.C})));
+  const packA = state.balancedA
+    ? shuffle(DATA.map(d=>({col:"A", id:d.id, label:d.A})))      // one slot per test (balanced)
+    : shuffle(dedupeByLabel(DATA.map(d=>({col:"A", id:`A-${d.A}`, label:d.A})))); // deduped labels
+
+  const packB = shuffle(DATA.map(d=>({col:"B", id:d.id, label:d.B})));
+  const packC = shuffle(DATA.map(d=>({col:"C", id:d.id, label:d.C})));
 
   for(const card of packA){ const node=renderCard(card); $("#col-A").append(node); state.nodeMap.A.push({data:card,node}); }
   for(const card of packB){ const node=renderCard(card); $("#col-B").append(node); state.nodeMap.B.push({data:card,node}); }
   for(const card of packC){ const node=renderCard(card); $("#col-C").append(node); state.nodeMap.C.push({data:card,node}); }
 
   const modeHint = document.getElementById("modeHint");
-  if(isTouch){ modeHint.innerHTML = 'On mobile: <span class="hint">tap a <b>Test</b> → tap a <b>Body Part</b>, then tap a <b>Meaning</b> → tap the same Body Part</span>.'; }
-  else { modeHint.textContent = 'Drag a Test onto its Body Part, then the matching Meaning. Race the clock!'; }
+  modeHint.innerHTML = isTouchish
+    ? 'On mobile: <span class="hint">Press & drag a <b>Test</b> to a <b>Body Part</b>, then a <b>Meaning</b> to the same Body Part. Or tap to select, then tap a Body Part.</span>'
+    : 'Drag a Test onto its Body Part, then the matching Meaning. Race the clock!';
 }
 
-/* --- Cards & interactions --- */
+/* Cards & interactions (Pointer Events + tap fallback) */
 function renderCard(card){
-  const node = el("div",{className:"card","data-col":card.col,"data-id":card.id},card.label);
+  const node = el("div",{className:"card","data-col":card.col,"data-id":card.id, tabIndex:0},card.label);
 
   if(card.col==="A"){
     const chips=document.createElement("div"); chips.className="chips"; node.appendChild(chips);
-    if(isTouch){
-      node.style.cursor = "pointer";
-      node.addEventListener("click", ()=> onTapBodyPart(node));
-    } else {
-      node.addEventListener("dragover", e=>{
-        if(dragPayload && ["B","C"].includes(dragPayload.col) && !node.classList.contains("locked")) e.preventDefault();
-        node.classList.add("highlight");
-      });
-      node.addEventListener("dragleave", ()=> node.classList.remove("highlight"));
-      node.addEventListener("drop", e=>onDropOnA(e,node));
-    }
+
+    // Accept drops via pointer
+    node.addEventListener("pointerenter", ()=> node.classList.add("highlight"));
+    node.addEventListener("pointerleave", ()=> node.classList.remove("highlight"));
+    node.addEventListener("pointerup", (e)=>{
+      if(_dragging && (_dragging.col==="B"||_dragging.col==="C")){ dropOnA(node); }
+    });
+
+    // Tap-to-link support
+    node.addEventListener("click", ()=> { if(state.selected) onTapBodyPart(node); });
+
   } else {
-    if(isTouch){
-      node.style.cursor = "pointer";
-      node.addEventListener("click", ()=>{
-        if(node.classList.contains("locked")) return;
-        startTimerIfNeeded();
-        selectBC(node);
-      });
-    } else {
-      node.setAttribute("draggable","true");
-      node.addEventListener("dragstart", e=>{
-        if(node.classList.contains("locked")){ e.preventDefault(); return; }
-        dragPayload={col:card.col,id:card.id,node};
-        node.classList.add("highlight");
-        startTimerIfNeeded();
-      });
-      node.addEventListener("dragend", ()=>{
-        dragPayload=null;
-        node.classList.remove("highlight");
-        stopAutoScroll();
-      });
-    }
+    // Start drag on pointer
+    node.addEventListener("pointerdown", (e)=>{
+      if(node.classList.contains("locked")) return;
+      startTimerIfNeeded();
+      startDrag(node, e);
+    });
+
+    // Tap-to-select fallback
+    node.addEventListener("click", ()=>{
+      if(_dragging) return; // ignore if drag already in progress
+      if(node.classList.contains("locked")) return;
+      selectBC(node);
+      startTimerIfNeeded();
+    });
   }
   return node;
 }
 
-let dragPayload=null;
+/* Drag state (Pointer Events) */
+let _dragging = null; // { col, id, node, ghost }
+let _scrollRAF = null;
 
-/* --- Mobile tap-to-link --- */
+function startDrag(node, e){
+  if(!hasPointer) return;
+  const col = node.getAttribute("data-col");
+  if(col==="A") return;
+
+  node.setPointerCapture(e.pointerId);
+  _dragging = { col, id: node.getAttribute("data-id"), node, ghost: makeGhost(node) };
+  node.classList.add("highlight");
+  document.body.appendChild(_dragging.ghost);
+  positionGhost(e.clientX, e.clientY);
+
+  window.addEventListener("pointermove", onDragMove);
+  window.addEventListener("pointerup", onDragEnd);
+}
+
+function onDragMove(e){
+  if(!_dragging) return;
+  positionGhost(e.clientX, e.clientY);
+  autoScrollFromY(e.clientY);
+}
+
+function onDragEnd(e){
+  if(!_dragging) return;
+  // Find A under pointer
+  const elUnder = document.elementFromPoint(e.clientX, e.clientY);
+  const aNode = elUnder?.closest?.('.col[data-col="A"] .card');
+  if(aNode){ dropOnA(aNode); }
+  cleanupDrag();
+}
+
+function cleanupDrag(){
+  stopAutoScroll();
+  window.removeEventListener("pointermove", onDragMove);
+  window.removeEventListener("pointerup", onDragEnd);
+  if(_dragging?.ghost) _dragging.ghost.remove();
+  if(_dragging?.node) _dragging.node.classList.remove("highlight");
+  _dragging = null;
+}
+
+function makeGhost(node){
+  const g = node.cloneNode(true);
+  g.style.position = "fixed";
+  g.style.pointerEvents = "none";
+  g.style.opacity = "0.9";
+  g.style.transform = "scale(0.98)";
+  g.style.zIndex = "1000";
+  g.style.width = (node.getBoundingClientRect().width)+"px";
+  return g;
+}
+function positionGhost(x,y){
+  const g=_dragging.ghost;
+  g.style.left = (x - g.getBoundingClientRect().width/2) + "px";
+  g.style.top  = (y - 24) + "px";
+}
+
+/* Touch/Pointer auto-scroll near edges */
+function autoScrollFromY(y){
+  const EDGE=70, SPEED=18;
+  const h = window.innerHeight;
+  const dir = (y < EDGE) ? -1 : (y > h-EDGE ? 1 : 0);
+  if(dir===0){ stopAutoScroll(); return; }
+  if(_scrollRAF) return;
+  const tick = ()=>{ window.scrollBy(0, dir*SPEED); _scrollRAF = requestAnimationFrame(tick); };
+  _scrollRAF = requestAnimationFrame(tick);
+}
+function stopAutoScroll(){ if(_scrollRAF){ cancelAnimationFrame(_scrollRAF); _scrollRAF=null; } }
+
+/* Drop logic shared by pointer + tap */
+function dropOnA(aNode){
+  if(!_dragging) return;
+  const kind=_dragging.col, draggedId=_dragging.id;
+  const aLabel = aNode.childNodes[0].textContent.trim();
+
+  if(kind==="B" && state.revB.has(draggedId)){
+    const oldA=state.revB.get(draggedId);
+    state.pairAB.delete(oldA); updateAChips(oldA); removeLine(`wire-ab-${draggedId}`); unmarkCardLinked("B",draggedId);
+  }
+  if(kind==="C" && state.revC.has(draggedId)){
+    const oldA=state.revC.get(draggedId);
+    state.pairAC.delete(oldA); updateAChips(oldA); removeLine(`wire-ac-${draggedId}`); unmarkCardLinked("C",draggedId);
+  }
+
+  if(kind==="B"){ state.pairAB.set(aNode,draggedId); state.revB.set(draggedId,aNode); markCardLinked("B",draggedId,aLabel); }
+  if(kind==="C"){ state.pairAC.set(aNode,draggedId); state.revC.set(draggedId,aNode); markCardLinked("C",draggedId,aLabel); }
+
+  flash(aNode); updateAChips(aNode); drawProvisionalWiresForA(aNode);
+  if(state.pairAB.has(aNode) && state.pairAC.has(aNode)) checkTripleForA(aNode);
+}
+
+/* Tap-to-link helpers */
 function selectBC(node){
   if(state.selected && state.selected.node === node){ clearSelection(); return; }
   if(state.selected) state.selected.node.classList.remove("selected");
@@ -399,55 +491,16 @@ function clearSelection(){
   document.getElementById("btn-clear-select").style.display = "none";
 }
 document.getElementById("btn-clear-select").addEventListener("click", clearSelection);
-
 function onTapBodyPart(aNode){
   if(!state.selected){ toast("Tap a Test/Meaning first, then a Body Part."); return; }
-  const kind = state.selected.col, draggedId = state.selected.id;
-  const aLabel = aNode.firstChild.nodeType===3 ? aNode.firstChild.nodeValue.trim() : aNode.childNodes[0].textContent.trim();
-
-  if(kind==="B" && state.revB.has(draggedId)){
-    const oldA=state.revB.get(draggedId);
-    state.pairAB.delete(oldA); updateAChips(oldA); removeLine(`wire-ab-${draggedId}`); unmarkCardLinked("B",draggedId);
-  }
-  if(kind==="C" && state.revC.has(draggedId)){
-    const oldA=state.revC.get(draggedId);
-    state.pairAC.delete(oldA); updateAChips(oldA); removeLine(`wire-ac-${draggedId}`); unmarkCardLinked("C",draggedId);
-  }
-
-  if(kind==="B"){ state.pairAB.set(aNode,draggedId); state.revB.set(draggedId,aNode); markCardLinked("B",draggedId,aLabel); }
-  if(kind==="C"){ state.pairAC.set(aNode,draggedId); state.revC.set(draggedId,aNode); markCardLinked("C",draggedId,aLabel); }
-
-  flash(aNode); updateAChips(aNode); drawProvisionalWiresForA(aNode);
+  // Pretend the selected card is being dragged and dropped on A
+  _dragging = { col: state.selected.col, id: state.selected.id, node: state.selected.node, ghost:null };
+  dropOnA(aNode);
   clearSelection();
-  if(state.pairAB.has(aNode) && state.pairAC.has(aNode)) checkTripleForA(aNode);
+  cleanupDrag();
 }
 
-/* --- Desktop drop handler --- */
-function onDropOnA(e,aNode){
-  e.preventDefault();
-  aNode.classList.remove("highlight");
-  if(!dragPayload) return;
-
-  const kind=dragPayload.col, draggedId=dragPayload.id;
-  const aLabel = aNode.firstChild.nodeType===3 ? aNode.firstChild.nodeValue.trim() : aNode.childNodes[0].textContent.trim();
-
-  if(kind==="B" && state.revB.has(draggedId)){
-    const oldA=state.revB.get(draggedId);
-    state.pairAB.delete(oldA); updateAChips(oldA); removeLine(`wire-ab-${draggedId}`); unmarkCardLinked("B",draggedId);
-  }
-  if(kind==="C" && state.revC.has(draggedId)){
-    const oldA=state.revC.get(draggedId);
-    state.pairAC.delete(oldA); updateAChips(oldA); removeLine(`wire-ac-${draggedId}`); unmarkCardLinked("C",draggedId);
-  }
-
-  if(kind==="B"){ state.pairAB.set(aNode,draggedId); state.revB.set(draggedId,aNode); markCardLinked("B",draggedId,aLabel); }
-  if(kind==="C"){ state.pairAC.set(aNode,draggedId); state.revC.set(draggedId,aNode); markCardLinked("C",draggedId,aLabel); }
-
-  flash(aNode); updateAChips(aNode); drawProvisionalWiresForA(aNode);
-  if(state.pairAB.has(aNode) && state.pairAC.has(aNode)) checkTripleForA(aNode);
-}
-
-/* --- Visual helpers --- */
+/* Visual helpers */
 function updateAChips(aNode){
   const chips=aNode.querySelector('.chips'); if(!chips) return;
   const bId=state.pairAB.get(aNode), cId=state.pairAC.get(aNode);
@@ -460,7 +513,7 @@ function markCardLinked(col,id,aLabel){ const node=findNodeById(col,id); if(!nod
 function unmarkCardLinked(col,id){ const node=findNodeById(col,id); if(!node) return; const old=node.querySelector('.tag'); if(old) old.remove(); node.classList.remove('paired'); }
 function flash(node){ node.classList.add('flash'); setTimeout(()=>node.classList.remove('flash'),350); }
 
-/* --- Wires --- */
+/* Wires */
 function defineGradientsOnce(){
   if(document.getElementById("gradAB")) return;
   const svg=$("#wires"); const defs=document.createElementNS("http://www.w3.org/2000/svg","defs");
@@ -487,13 +540,13 @@ function drawProvisionalWiresForA(aNode){
   if(chosenC){ const cNode=findNodeById("C",chosenC); if(cNode){ const cPos=mid(cNode); const id=`wire-ac-${chosenC}`; const path=curve(aPos,cPos); const line=ensureLine(id,"url(#gradAC)"); line.setAttribute("d",path); } }
 }
 
-/* --- Checking & Locking --- */
+/* Checking & Locking */
 function checkTripleForA(aNode){
   state.tries++; $("#tries").textContent=String(state.tries);
   const chosenB=state.pairAB.get(aNode), chosenC=state.pairAC.get(aNode);
   const sameTriple=chosenB && chosenC && (chosenB===chosenC);
   const triple=DATA.find(d=>d.id===chosenB);
-  const aLabel=aNode.firstChild.nodeType===3 ? aNode.firstChild.nodeValue.trim() : aNode.childNodes[0].textContent.trim();
+  const aLabel=aNode.childNodes[0].textContent.trim();
   const labelMatches=triple && triple.A===aLabel;
   const isCorrect = sameTriple && labelMatches;
   const abId=`wire-ab-${chosenB}`, acId=`wire-ac-${chosenC}`;
@@ -507,19 +560,13 @@ function checkTripleForA(aNode){
   } else {
     ensureLine(abId,"#ff6b6b"); ensureLine(acId,"#ff6b6b");
     // Record a mistake
-    const bpLabel = aNode.firstChild.nodeType===3 ? aNode.firstChild.nodeValue.trim() : aNode.childNodes[0].textContent.trim();
+    const bpLabel = aLabel;
     const chosenBLabel = DATA.find(d=>d.id===chosenB)?.B || "(test not found)";
     const chosenCLabel = DATA.find(d=>d.id===chosenC)?.C || "(meaning not found)";
     const note = sameTriple
       ? `That pair belongs to ${(DATA.find(d=>d.id===chosenB)?.A || "other body part")}`
       : "Test & Meaning must come from the same clinical test";
-    state.mistakes.push({
-      time: new Date().toISOString(),
-      bodyPart: bpLabel,
-      test: chosenBLabel,
-      meaning: chosenCLabel,
-      note
-    });
+    state.mistakes.push({ time: new Date().toISOString(), bodyPart: bpLabel, test: chosenBLabel, meaning: chosenCLabel, note });
 
     toast("Not quite — adjust the links.");
     setTimeout(()=>{
@@ -542,7 +589,7 @@ function lockTriple(tripleId){
   if(aNode){ drawFinalWiresForTriple(aNode,tripleId); }
   if(state.lockedIds.size===DATA.length){
     stopTimerAndMaybeSetBest();
-    showSummary(false); // show end-of-quiz summary
+    showSummary(false);
     toast("All matched — you win! 🏆");
   }
 }
@@ -553,7 +600,7 @@ function drawFinalWiresForTriple(aNode,tripleId){
   ab.setAttribute("d",curve(bPos,aPos)); ac.setAttribute("d",curve(aPos,cPos));
 }
 
-/* --- Wire maintenance --- */
+/* Wire maintenance */
 let refreshTimer=null;
 function refreshWires(){
   for(const tripleId of state.lockedIds){
@@ -569,7 +616,7 @@ function refreshWiresDeferred(){ clearTimeout(refreshTimer); refreshTimer=setTim
 window.addEventListener("resize", refreshWiresDeferred);
 document.addEventListener("scroll", refreshWiresDeferred, true);
 
-/* --- Results Summary --- */
+/* Results Summary */
 function showSummary(isDNF){
   const solved = state.lockedIds.size;
   const total = DATA.length;
@@ -607,58 +654,41 @@ function showSummary(isDNF){
 }
 function closeSummary(){
   document.getElementById("summaryModal").classList.remove("open");
-  buildBoard(); // start a fresh round
+  buildBoard();
 }
 document.getElementById("btn-sum-close").addEventListener("click", closeSummary);
 document.getElementById("btn-sum-csv").addEventListener("click", ()=>{
   const header = ["#", "Body part", "Test chosen", "Meaning chosen", "Note", "When"];
   const lines = [header.join(",")];
   state.mistakes.forEach((m,i)=>{
-    const row = [
-      i+1, m.bodyPart, m.test, m.meaning, m.note, m.time
-    ].map(v => `"${String(v).replace(/"/g,'""')}"`);
+    const row = [i+1, m.bodyPart, m.test, m.meaning, m.note, m.time].map(v => `"${String(v).replace(/"/g,'""')}"`);
     lines.push(row.join(","));
   });
   const blob = new Blob([lines.join("\n")], { type:"text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url; a.download = "msk_match_results.csv";
-  document.body.appendChild(a); a.click(); a.remove();
+  const a = document.createElement("a"); a.href = url; a.download = "msk_match_results.csv"; document.body.appendChild(a); a.click(); a.remove();
   setTimeout(()=>URL.revokeObjectURL(url), 1000);
 });
 
-/* --- Mode controls --- */
+/* Mode controls */
 const toggleCountdown=document.getElementById("toggle-countdown");
 const selDuration=document.getElementById("race-duration");
 toggleCountdown.addEventListener("change", ()=>{ state.mode=toggleCountdown.checked?"countdown":"stopwatch"; resetTimerUI(); toast(state.mode==="countdown"?"Countdown mode on ⏳":"Stopwatch mode on ⏱️"); });
 selDuration.addEventListener("change", ()=>{ state.raceLimitMs=Number(selDuration.value||120000); if(state.mode==="countdown"){ resetTimerUI(); toast(`Countdown set to ${formatMs(state.raceLimitMs)}`); }});
 
-/* --- Desktop auto-scroll while dragging --- */
-if(!isTouch){
-  const SCROLL_EDGE = 80, SCROLL_SPEED = 18;
-  let _dragScrolling = { dir: 0, raf: null };
-  function _scrollTick(){ if(_dragScrolling.dir!==0){ window.scrollBy(0, _dragScrolling.dir*SCROLL_SPEED); _dragScrolling.raf=requestAnimationFrame(_scrollTick); } else if(_dragScrolling.raf){ cancelAnimationFrame(_dragScrolling.raf); _dragScrolling.raf=null; } }
-  function handleDragOverAutoScroll(e){
-    e.preventDefault();
-    const y=e.clientY, h=window.innerHeight;
-    const newDir = (y < SCROLL_EDGE) ? -1 : (y > h - SCROLL_EDGE ? 1 : 0);
-    if(newDir!==_dragScrolling.dir){
-      _dragScrolling.dir=newDir;
-      if(_dragScrolling.dir!==0 && !_dragScrolling.raf){ _dragScrolling.raf=requestAnimationFrame(_scrollTick); }
-      else if(_dragScrolling.dir===0){ _scrollTick(); }
-    }
-  }
-  function stopAutoScroll(){ _dragScrolling.dir=0; if(_dragScrolling.raf){ cancelAnimationFrame(_dragScrolling.raf); _dragScrolling.raf=null; } }
-  document.addEventListener('dragover', handleDragOverAutoScroll, { passive:false });
-  document.addEventListener('dragleave', stopAutoScroll);
-  document.addEventListener('drop', stopAutoScroll);
-}
+/* Balanced columns toggle */
+const toggleBalance=document.getElementById("toggle-balance");
+toggleBalance.checked = state.balancedA;
+toggleBalance.addEventListener("change", ()=>{
+  state.balancedA = toggleBalance.checked;
+  buildBoard();
+});
 
-/* --- Controls --- */
+/* Controls */
 $("#btn-shuffle").addEventListener("click",()=>{ buildBoard(); toast("New shuffle ready 🔀"); });
 $("#btn-reset").addEventListener("click",()=>{ buildBoard(); toast("Board reset ♻️"); });
 
-/* --- Init --- */
+/* Init */
 function showBest(){ const raw=localStorage.getItem(LS_KEY_BEST); $("#best").textContent = raw ? formatMs(Number(raw)) : "—"; }
 function defineGradientsOnce(){ if(document.getElementById("gradAB")) return; const svg=$("#wires"); const defs=document.createElementNS("http://www.w3.org/2000/svg","defs"); const gradAB=document.createElementNS("http://www.w3.org/2000/svg","linearGradient"); gradAB.id="gradAB"; gradAB.setAttribute("x1","0%"); gradAB.setAttribute("x2","100%"); gradAB.innerHTML='<stop offset="0%" stop-color="#7c5cff"/><stop offset="100%" stop-color="#00d1ff"/>'; const gradAC=document.createElementNS("http://www.w3.org/2000/svg","linearGradient"); gradAC.id="gradAC"; gradAC.setAttribute("x1","0%"); gradAC.setAttribute("x2","100%"); gradAC.innerHTML='<stop offset="0%" stop-color="#f8c77e"/><stop offset="100%" stop-color="#7c5cff"/>'; defs.appendChild(gradAB); defs.appendChild(gradAC); svg.appendChild(defs); }
 showBest(); buildBoard();
