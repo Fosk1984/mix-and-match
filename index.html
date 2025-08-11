@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MSK Special Tests — Drag & Match</title>
+<style>
+  :root {
+    --bg: #0f1220;
+    --panel: #161a2e;
+    --card: #1b2040;
+    --muted: #9aa4bf;
+    --ok: #2ecc71;
+    --bad: #ff6b6b;
+    --accent: #7c5cff;
+    --accent2: #00d1ff;
+    --ink: #e9ecff;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif;
+    background: radial-gradient(1200px 600px at 10% 0%, #121633 0%, var(--bg) 60%);
+    color: var(--ink); min-height:100dvh; padding:24px; display:flex; align-items:center; justify-content:center;
+  }
+  .app{ width:min(1200px,100%); display:grid; gap:16px; }
+  h1{
+    margin:0; font-size: clamp(22px, 3.4vw, 36px); font-weight:800; letter-spacing:.2px;
+    background: linear-gradient(90deg,var(--accent),var(--accent2));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .lead{ margin:4px 0 0; color:var(--muted) }
+  .controls{ display:flex; flex-wrap:wrap; gap:8px; align-items:center }
+  .btn, .pill{
+    background:#20254a; color:var(--ink); border:1px solid #2c3258; padding:10px 14px; border-radius:10px; font-weight:700; cursor:pointer;
+  }
+  .btn:hover{ border-color:var(--accent) }
+  .pill{ display:inline-flex; align-items:center; gap:8px; user-select:none }
+  .pill input{ accent-color:var(--accent); width:18px; height:18px }
+  .meta{ margin-left:auto; display:flex; gap:16px; color:var(--muted) }
+  .score{ font-weight:800; color:#fff }
+
+  .board{
+    position:relative;
+    display:grid; grid-template-columns: 1fr 1fr 1fr; gap:16px;
+  }
+  @media (max-width:980px){ .board{ grid-template-columns:1fr } }
+
+  .col{
+    background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(0,0,0,.2));
+    border:1px solid #2c3258; border-radius:16px; padding:12px; display:grid; gap:10px;
+  }
+  .col h2{ margin:0; font-size:14px; letter-spacing:1px; text-transform:uppercase; color:#c9cff7; display:flex; justify-content:space-between }
+  .stack{ display:grid; gap:10px; min-height:320px }
+
+  .card{
+    background:var(--card); border:1px solid #2b3160; border-radius:12px; padding:12px;
+    line-height:1.25; cursor:grab; user-select:none; outline:none;
+    transition: transform .08s ease, border-color .12s ease, background-color .12s ease, box-shadow .12s ease;
+  }
+  .card:active{ cursor:grabbing }
+  .card:hover{ transform: translateY(-1px); border-color:#3a4184 }
+  .card[data-col="B"]{ border-left:4px solid var(--accent) }
+  .card[data-col="A"]{ border-left:4px solid #6fd3a6 }
+  .card[data-col="C"]{ border-left:4px solid #f8c77e }
+
+  .card.highlight{ box-shadow: 0 0 0 2px rgba(124,92,255,.35) inset }
+  .card.correct{ border-color:var(--ok); background:#143524 }
+  .card.wrong{ border-color:var(--bad); background:#3a1c1c }
+  .card.locked{ opacity:.95; cursor:default }
+
+  .toast{
+    position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
+    background:#1f2544; border:1px solid #343c73; padding:10px 14px; border-radius:10px; display:none; font-weight:700;
+  }
+  .toast.show{ display:inline-block }
+
+  /* SVG overlays for lines */
+  .wires{
+    position:absolute; inset:0; pointer-events:none;
+  }
+  footer{ color:var(--muted); font-size:13px; text-align:center }
+  .kbd{ font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background:#0d1022; border:1px solid #2b3160; padding:2px 6px; border-radius:6px; }
+</style>
+</head>
+<body>
+  <div class="app" role="application" aria-label="MSK Special Tests drag-and-drop matching game">
+    <header>
+      <h1>Drag & Match — MSK Special Tests</h1>
+      <p class="lead">Drag a <strong>Test</strong> (middle) onto its <strong>Body Part</strong> (left), then drag the matching <strong>Meaning</strong> (right) onto the same Body Part. Connect the correct triple to lock it in.</p>
+      <div class="controls" aria-label="Game controls">
+        <button class="btn" id="btn-shuffle">🔀 New Shuffle</button>
+        <button class="btn" id="btn-reset">♻️ Reset</button>
+        <label class="pill"><input type="checkbox" id="toggle-hints" /> Show hints</label>
+        <div class="meta">
+          <span>Solved: <span class="score" id="score">0</span>/<span id="total">0</span></span>
+          <span>Tries: <span class="score" id="tries">0</span></span>
+        </div>
+      </div>
+    </header>
+
+    <section class="board" id="board">
+      <!-- SVG wires layer -->
+      <svg class="wires" id="wires" aria-hidden="true"></svg>
+
+      <div class="col" data-col="A" aria-label="Column A: Body Part">
+        <h2>Body Part <span>A</span></h2>
+        <div class="stack" id="col-A" role="list"></div>
+      </div>
+
+      <div class="col" data-col="B" aria-label="Column B: Test">
+        <h2>Special Test <span>B</span></h2>
+        <div class="stack" id="col-B" role="list"></div>
+      </div>
+
+      <div class="col" data-col="C" aria-label="Column C: Meaning">
+        <h2>Meaning <span>C</span></h2>
+        <div class="stack" id="col-C" role="list"></div>
+      </div>
+    </section>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <footer>Tip: shuffle for a new layout. If a line looks off after resizing, it’ll auto-correct.</footer>
+  </div>
+
+<script>
+/* ========= Dataset (extendable) =========
+   Each item must have matching A/B/C entries with the SAME id
+*/
+const DATA = [
+  // Shoulder
+  { id:"shoulder-hawkins-imp", A:"Shoulder", B:"Hawkins–Kennedy Test", C:"Screens for subacromial impingement" },
+  { id:"shoulder-emptycan-ss", A:"Shoulder", B:"Jobe / Empty Can Test", C:"Assesses supraspinatus tendinopathy or tear" },
+  { id:"shoulder-apprehension", A:"Shoulder", B:"Apprehension–Relocation Test", C:"Assesses anterior shoulder instability" },
+  { id:"shoulder-speeds-lhb", A:"Shoulder", B:"Speed’s Test", C:"Suggests long head of biceps tendinopathy" },
+
+  // Knee
+  { id:"knee-lachman-acl", A:"Knee", B:"Lachman Test", C:"Assesses anterior cruciate ligament (ACL) integrity" },
+  { id:"knee-mcmurray-meniscus", A:"Knee", B:"McMurray Test", C:"Detects meniscal tear" },
+  { id:"knee-thessaly-meniscus", A:"Knee", B:"Thessaly Test", C:"Screens for meniscal pathology under load" },
+  { id:"knee-varus-lcl", A:"Knee", B:"Varus Stress Test (30°)", C:"Assesses lateral collateral ligament (LCL)" },
+
+  // Hip / SIJ
+  { id:"hip-faber-sij", A:"Hip / SIJ", B:"FABER (Patrick’s) Test", C:"Evaluates hip or sacroiliac joint pathology" },
+  { id:"hip-fadir-imp", A:"Hip / SIJ", B:"FADIR Test", C:"Provokes femoroacetabular impingement symptoms" },
+  { id:"hip-trendelenburg", A:"Hip / SIJ", B:"Trendelenburg Sign", C:"Suggests gluteus medius weakness" },
+
+  // Elbow
+  { id:"elbow-cozen-tennis", A:"Elbow", B:"Cozen’s Test", C:"Identifies lateral epicondylitis (tennis elbow)" },
+  { id:"elbow-mills-tennis", A:"Elbow", B:"Mill’s Test", C:"Stretches/worsens lateral epicondylitis pain" },
+  { id:"elbow-maudsley-tennis", A:"Elbow", B:"Maudsley’s Test", C:"Pain with resisted 3rd finger extension → tennis elbow" },
+
+  // Wrist/Hand
+  { id:"wrist-finkelstein", A:"Wrist/Hand", B:"Finkelstein’s Test", C:"Detects de Quervain’s tenosynovitis" },
+  { id:"wrist-phalen-cts", A:"Wrist/Hand", B:"Phalen’s Test", C:"Provokes carpal tunnel syndrome symptoms" },
+  { id:"wrist-tinel-cts", A:"Wrist/Hand", B:"Tinel’s at Carpal Tunnel", C:"Paresthesia over median nerve (CTS)" },
+
+  // Ankle/Foot
+  { id:"ankle-thompson-achilles", A:"Ankle/Foot", B:"Thompson Test", C:"Checks for Achilles tendon rupture" },
+  { id:"ankle-antdrawer-atfl", A:"Ankle/Foot", B:"Anterior Drawer Test (ankle)", C:"Assesses ATFL laxity/tear" },
+  { id:"foot-morton-neuroma", A:"Ankle/Foot", B:"Morton’s Squeeze Test", C:"Suggests interdigital (Morton’s) neuroma" },
+
+  // Spine/Neuro
+  { id:"cspine-spurling", A:"Cervical Spine", B:"Spurling’s Test", C:"Reproduces radicular pain → cervical radiculopathy" },
+  { id:"lspine-slr", A:"Lumbar Spine", B:"Straight Leg Raise", C:"Stretches sciatic nerve → lumbar radiculopathy" },
+  { id:"tost-adson", A:"Thoracic Outlet", B:"Adson’s Test", C:"Diminished pulse/paresthesia → TOS (scalene compression)" },
+  { id:"tost-roos", A:"Thoracic Outlet", B:"Roos / EAST", C:"Provocation of TOS symptoms with sustained elevation" },
+];
+
+const state = {
+  tries: 0,
+  lockedIds: new Set(),     // solved triples
+  wires: new Map(),         // id -> { lineAB, lineAC }
+  pairAB: new Map(),        // A-card DOM -> B id chosen
+  pairAC: new Map(),        // A-card DOM -> C id chosen
+  nodeMap: { A:[], B:[], C:[] } // card objects per column
+};
+
+const $ = s => document.querySelector(s);
+const el = (t, p={}, ...kids) => { const n = Object.assign(document.createElement(t), p); kids.forEach(k=>n.append(k)); return n; };
+const shuffle = a => { const b=a.slice(); for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1)); [b[i],b[j]]=[b[j],b[i]];} return b; };
+
+function toast(msg){
+  const t = $("#toast"); t.textContent = msg; t.className = "toast show";
+  setTimeout(()=> t.className = "toast", 1400);
+}
+
+function buildBoard(){
+  state.tries = 0;
+  state.lockedIds.clear();
+  state.wires.clear();
+  state.pairAB.clear();
+  state.pairAC.clear();
+  state.nodeMap = {A:[],B:[],C:[]};
+  $("#wires").innerHTML = "";
+  $("#tries").textContent = "0";
+  $("#score").textContent = "0";
+  $("#total").textContent = String(DATA.length);
+
+  const cols = { A:$("#col-A"), B:$("#col-B"), C:$("#col-C") };
+  for(const k of ["A","B","C"]) cols[k].innerHTML="";
+
+  const A = DATA.map(d=>({col:"A", id:d.id, label:d.A}));
+  const B = DATA.map(d=>({col:"B", id:d.id, label:d.B}));
+  const C = DATA.map(d=>({col:"C", id:d.id, label:d.C}));
+
+  const packs = { A:dedupeByLabel(A), B:shuffle(B), C:shuffle(C) };
+  // For column A we dedupe by label (e.g., multiple "Shoulder"); each A card represents a specific triple id slot
+  // To keep triples resolvable, we still give each A card a unique id from DATA (one per triple).
+  // So pack A must be one-to-one with DATA length:
+  packs.A = shuffle(DATA.map(d=>({col:"A", id:d.id, label:d.A})));
+
+  for(const k of ["A","B","C"]){
+    for(const card of packs[k]){
+      const node = renderCard(card);
+      cols[k].appendChild(node);
+      state.nodeMap[k].push({ data:card, node });
+    }
+  }
+  refreshWiresDeferred();
+}
+
+function dedupeByLabel(arr){
+  const seen=new Set(), out=[];
+  for(const x of arr){ if(!seen.has(x.label)){ seen.add(x.label); out.push(x); } }
+  return out;
+}
+
+function renderCard(card){
+  const node = el("div", {
+    className:"card",
+    draggable: card.col!=="A", // A are drop targets; B & C are draggable
+    "data-col":card.col,
+    "data-id":card.id,
+    ondragstart:e=>onDragStart(e, node),
+    ondragend: onDragEnd
+  }, card.label);
+
+  if(card.col==="A"){
+    node.addEventListener("dragover", e=>onDragOver(e, node));
+    node.addEventListener("dragleave", ()=> node.classList.remove("highlight"));
+    node.addEventListener("drop", e=>onDropOnA(e, node));
+  }
+  return node;
+}
+
+let dragPayload = null; // { col:"B"|"C", id, node }
+
+function onDragStart(e, node){
+  const col = node.getAttribute("data-col");
+  const id  = node.getAttribute("data-id");
+  if(node.classList.contains("locked")) { e.preventDefault(); return; }
+  dragPayload = { col, id, node };
+  e.dataTransfer.setData("text/plain", JSON.stringify({col,id}));
+  // Give a little visual cue
+  setTimeout(()=> node.classList.add("highlight"), 0);
+}
+
+function onDragEnd(e){
+  dragPayload?.node.classList.remove("highlight");
+  dragPayload = null;
+}
+
+function onDragOver(e, aNode){
+  // Only accept B or C dragging
+  if(!dragPayload || !["B","C"].includes(dragPayload.col)) return;
+  // Don’t accept if A is locked
+  if(aNode.classList.contains("locked")) return;
+  e.preventDefault();
+  aNode.classList.add("highlight");
+}
+
+function onDropOnA(e, aNode){
+  e.preventDefault();
+  aNode.classList.remove("highlight");
+  if(!dragPayload) return;
+
+  const aId = aNode.getAttribute("data-id");
+  const kind = dragPayload.col; // "B" or "C"
+  const draggedId = dragPayload.id;
+
+  // Record provisional pairing
+  if(kind==="B") state.pairAB.set(aNode, draggedId);
+  if(kind==="C") state.pairAC.set(aNode, draggedId);
+
+  // Visual feedback (line)
+  drawWireForA(aNode);
+
+  // If both sides placed, evaluate
+  if(state.pairAB.has(aNode) && state.pairAC.has(aNode)){
+    checkTripleForA(aNode, aId);
+  }
+}
+
+function midPointOfNode(node){
+  const r = node.getBoundingClientRect();
+  // return center-right for A; center-left for B; center-left for C lines are calculated per direction;
+  return {
+    center: { x: r.left + r.width/2, y: r.top + r.height/2 },
+    left:   { x: r.left, y: r.top + r.height/2 },
+    right:  { x: r.right, y: r.top + r.height/2 }
+  };
+}
+
+function svg(){
+  return $("#wires");
+}
+
+function boardOffset(){
+  const b = $("#board").getBoundingClientRect();
+  return { left:b.left + window.scrollX, top: b.top + window.scrollY, width:b.width, height:b.height };
+}
+
+function ensureLine(id, cls){
+  let line = document.getElementById(id);
+  if(!line){
+    line = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    line.setAttribute("id", id);
+    line.setAttribute("fill", "none");
+    line.setAttribute("stroke-width", "3");
+    line.setAttribute("stroke-linecap", "round");
+    line.setAttribute("opacity", "0.95");
+    svg().appendChild(line);
+  }
+  // style
+  if(cls==="pendingAB"){ line.setAttribute("stroke", "url(#gradAB)") }
+  if(cls==="pendingAC"){ line.setAttribute("stroke", "url(#gradAC)") }
+  if(cls==="correct"){ line.setAttribute("stroke", "#2ecc71") }
+  if(cls==="wrong"){ line.setAttribute("stroke", "#ff6b6b") }
+  return line;
+}
+
+function defineGradientsOnce(){
+  if(document.getElementById("gradAB")) return;
+  const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+
+  const gradAB = document.createElementNS("http://www.w3.org/2000/svg","linearGradient");
+  gradAB.id="gradAB"; gradAB.setAttribute("x1","0%"); gradAB.setAttribute("x2","100%");
+  gradAB.innerHTML = `<stop offset="0%" stop-color="#7c5cff"/><stop offset="100%" stop-color="#00d1ff"/>`;
+
+  const gradAC = document.createElementNS("http://www.w3.org/2000/svg","linearGradient");
+  gradAC.id="gradAC"; gradAC.setAttribute("x1","0%"); gradAC.setAttribute("x2","100%");
+  gradAC.innerHTML = `<stop offset="0%" stop-color="#f8c77e"/><stop offset="100%" stop-color="#7c5cff"/>`;
+
+  defs.appendChild(gradAB); defs.appendChild(gradAC);
+  svg().appendChild(defs);
+}
+
+function drawWireForA(aNode){
+  defineGradientsOnce();
+
+  // Clear old lines for this A if any
+  const aid = aNode.getAttribute("data-id");
+  const abId = `wire-ab-${aid}`;
+  const acId = `wire-ac-${aid}`;
+
+  const pairB = state.pairAB.get(aNode);
+  const pairC = state.pairAC.get(aNode);
+
+  const aPos = midPointOfNode(aNode).center;
+
+  // AB
+  if(pairB){
+    const bNode = findNodeById("B", pairB);
+    if(bNode){
+      const bPos = midPointOfNode(bNode).center;
+      const path = makeCurvePath(bPos, aPos); // B → A
+      const line = ensureLine(abId, "pendingAB");
+      line.setAttribute("d", path);
+    }
+  }
+  // AC
+  if(pairC){
+    const cNode = findNodeById("C", pairC);
+    if(cNode){
+      const cPos = midPointOfNode(cNode).center;
+      const path = makeCurvePath(aPos, cPos); // A → C
+      const line = ensureLine(acId, "pendingAC");
+      line.setAttribute("d", path);
+    }
+  }
+}
+
+function makeCurvePath(p1, p2){
+  // Smooth cubic curve between two points
+  const dx = (p2.x - p1.x) * 0.35;
+  const c1 = { x: p1.x + dx, y: p1.y };
+  const c2 = { x: p2.x - dx, y: p2.y };
+  // Convert to board-local coords for the SVG
+  const off = boardOffset();
+  const P1 = { x: p1.x - off.left, y: p1.y - off.top };
+  const C1 = { x: c1.x - off.left, y: c1.y - off.top };
+  const C2 = { x: c2.x - off.left, y: c2.y - off.top };
+  const P2 = { x: p2.x - off.left, y: p2.y - off.top };
+  return `M ${P1.x},${P1.y} C ${C1.x},${C1.y} ${C2.x},${C2.y} ${P2.x},${P2.y}`;
+}
+
+function findNodeById(col, id){
+  const group = state.nodeMap[col];
+  return group.find(x=>x.data.id===id)?.node || null;
+}
+
+function checkTripleForA(aNode, aId){
+  state.tries++;
+  $("#tries").textContent = String(state.tries);
+
+  const chosenB = state.pairAB.get(aNode);
+  const chosenC = state.pairAC.get(aNode);
+
+  const isCorrect = (aId === chosenB) && (aId === chosenC);
+  const hints = $("#toggle-hints").checked;
+
+  // decorate lines
+  const abLine = ensureLine(`wire-ab-${aId}`, isCorrect ? "correct" : "wrong");
+  const acLine = ensureLine(`wire-ac-${aId}`, isCorrect ? "correct" : "wrong");
+
+  if(isCorrect){
+    lockTriple(aNode, aId);
+    toast("Nice! Correct match 🎉");
+  } else {
+    toast("Not quite — adjust the links.");
+    if(!hints){
+      // soft clear wrong marks on A
+      setTimeout(()=>{
+        abLine.setAttribute("stroke", "url(#gradAB)");
+        acLine.setAttribute("stroke", "url(#gradAC)");
+      }, 900);
+    }
+  }
+
+  // Win?
+  if(state.lockedIds.size === DATA.length){
+    toast("All matched — you win! 🏆");
+  }
+  refreshWiresDeferred(); // in case layout shifts slightly
+}
+
+function lockTriple(aNode, aId){
+  state.lockedIds.add(aId);
+  $("#score").textContent = String(state.lockedIds.size);
+
+  // Lock A, and the specific B/C nodes paired
+  aNode.classList.add("locked","correct");
+  const bNode = findNodeById("B", aId);
+  const cNode = findNodeById("C", aId);
+  if(bNode) bNode.classList.add("locked","correct");
+  if(cNode) cNode.classList.add("locked","correct");
+
+  // Ensure wires are painted as correct and redrawn cleanly
+  const ab = ensureLine(`wire-ab-${aId}`, "correct");
+  const ac = ensureLine(`wire-ac-${aId}`, "correct");
+  drawWireForA(aNode);
+}
+
+function resetBoard(){
+  // Clear all visuals except layout; keep the same shuffle
+  state.tries = 0;
+  state.lockedIds.clear();
+  state.wires.clear();
+  state.pairAB.clear();
+  state.pairAC.clear();
+  $("#tries").textContent = "0";
+  $("#score").textContent = "0";
+  $("#wires").innerHTML = "";
+  for(const k of ["A","B","C"]){
+    for(const {node} of state.nodeMap[k]){
+      node.classList.remove("locked","correct","wrong","highlight");
+    }
+  }
+  refreshWiresDeferred();
+}
+
+/* ------- Wire maintenance on resize/scroll ------- */
+let refreshTimer = null;
+function refreshWires(){
+  // Re-draw all existing wires from current pairs
+  for(const { data, node:aNode } of state.nodeMap.A){
+    if(state.pairAB.has(aNode) || state.pairAC.has(aNode)){
+      drawWireForA(aNode);
+    }
+  }
+}
+function refreshWiresDeferred(){
+  clearTimeout(refreshTimer);
+  refreshTimer = setTimeout(refreshWires, 50);
+}
+window.addEventListener("resize", refreshWiresDeferred);
+document.addEventListener("scroll", refreshWiresDeferred, true);
+
+/* -------- Controls -------- */
+$("#btn-shuffle").addEventListener("click", ()=>{ buildBoard(); toast("New shuffle ready 🔀"); });
+$("#btn-reset").addEventListener("click", ()=>{ resetBoard(); toast("Board reset ♻️"); });
+
+/* ---- Init ---- */
+buildBoard();
+
+</script>
+</body>
+</html>
