@@ -4,92 +4,126 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>MSK Special Tests — Drag & Match</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
-  :root { --bg:#0f1220; --panel:#161a2e; --card:#1b2040; --muted:#9aa4bf; --ok:#2ecc71; --bad:#ff6b6b; --accent:#7c5cff; --accent2:#00d1ff; --ink:#e9ecff; }
+  :root{
+    --bg:#0c0f1e; --bg2:#0a0d1a; --card:#171c3a; --border:#2a3160;
+    --muted:#9aa4bf; --ink:#eaf0ff; --ok:#33d17a; --bad:#ff6b6b;
+    --acc1:#8b7cff; --acc2:#00d1ff; --acc3:#ffc36b;
+    --shadow: 0 8px 28px rgba(5,8,28,.35), inset 0 1px 0 rgba(255,255,255,.02);
+    --radius:16px;
+  }
   *{box-sizing:border-box}
-  body{ margin:0; font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;
-        background:radial-gradient(1200px 600px at 10% 0%, #121633 0%, var(--bg) 60%);
-        color:var(--ink); min-height:100dvh; padding:24px; display:flex; align-items:center; justify-content:center; }
-  .app{ width:min(1200px,100%); display:grid; gap:16px }
-  h1{ margin:0; font-size:clamp(22px,3.4vw,36px); font-weight:800; letter-spacing:.2px;
-      background:linear-gradient(90deg,var(--accent),var(--accent2)); -webkit-background-clip:text; background-clip:text; color:transparent; }
-  .lead{ margin:4px 0 0; color:var(--muted) }
-  .controls{ display:flex; flex-wrap:wrap; gap:8px; align-items:center }
-  .btn,.pill,select{ background:#20254a; color:var(--ink); border:1px solid #2c3258; padding:10px 14px; border-radius:10px; font-weight:700; cursor:pointer; }
-  select{ padding:10px 10px }
-  .btn:hover{ border-color:var(--accent) }
+  html,body{height:100%}
+  body{
+    margin:0; font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    color:var(--ink);
+    background:
+      radial-gradient(1200px 700px at 8% -10%, #171c3a 0%, transparent 60%),
+      radial-gradient(900px 600px at 100% -20%, #0e1230 0%, transparent 60%),
+      linear-gradient(180deg, var(--bg) 0%, var(--bg2) 100%);
+    display:flex; align-items:start; justify-content:center; padding:24px;
+  }
+  .app{ width:min(1100px,100%); display:grid; gap:18px }
+
+  header{
+    background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(0,0,0,.15));
+    border:1px solid var(--border); border-radius: var(--radius); padding:16px; box-shadow: var(--shadow);
+    position:sticky; top:12px; z-index:5; backdrop-filter: blur(6px);
+  }
+  h1{
+    margin:0 0 6px; font-weight:800; letter-spacing:.2px; font-size: clamp(22px, 3.4vw, 36px);
+    background:linear-gradient(90deg,var(--acc1),var(--acc2)); -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .lead{ margin:0; color:var(--muted) }
+
+  .controls{ margin-top:10px; display:flex; flex-wrap:wrap; gap:10px; align-items:center }
+  .btn,.pill,select{
+    background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(0,0,0,.2));
+    border:1px solid var(--border); color:var(--ink); padding:10px 14px; border-radius:12px; font-weight:700; cursor:pointer;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.03); transition: border-color .15s ease, transform .06s ease;
+  }
+  .btn:hover{ border-color:var(--acc1) } .btn:active{ transform: translateY(1px) }
   .pill{ display:inline-flex; align-items:center; gap:8px; user-select:none }
-  .pill input{ accent-color:var(--accent); width:18px; height:18px }
-  .meta{ margin-left:auto; display:flex; gap:12px; color:var(--muted); flex-wrap:wrap; align-items:center }
+  .pill input{ accent-color:var(--acc1); width:18px; height:18px }
+  select{ padding:10px 12px; }
+  .meta{ margin-left:auto; display:flex; gap:14px; color:var(--muted); flex-wrap:wrap; align-items:center }
   .score,.time{ font-variant-numeric: tabular-nums; color:#fff; font-weight:800 }
+  .hint-inline{ font-size:12px; color:#cbd3ff; opacity:.9 }
+
   .board{ position:relative; display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px }
   @media (max-width:980px){ .board{ grid-template-columns:1fr } }
-  .col{ background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(0,0,0,.2));
-        border:1px solid #2c3258; border-radius:16px; padding:12px; display:grid; gap:10px; }
-  .col h2{ margin:0; font-size:14px; letter-spacing:1px; text-transform:uppercase; color:#c9cff7; display:flex; justify-content:space-between }
-  .stack{ display:grid; gap:10px; min-height:320px }
 
-  .card{ background:var(--card); border:1px solid #2b3160; border-radius:12px; padding:12px; line-height:1.25;
-         cursor:grab; user-select:none; outline:none; transition:transform .08s ease, border-color .12s ease, background-color .12s ease, box-shadow .12s ease; }
+  .col{
+    background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(0,0,0,.2));
+    border:1px solid var(--border); border-radius: var(--radius); padding:12px; display:grid; gap:10px; box-shadow: var(--shadow);
+  }
+  .col h2{ margin:0; font-size:13px; letter-spacing:1px; text-transform:uppercase; color:#c9cff7; display:flex; justify-content:space-between; align-items:center }
+  .tag-left{ color:#a6ffc6 } .tag-mid{ color:#bfb4ff } .tag-right{ color:#ffd599 }
+  .stack{ display:grid; gap:10px; min-height:340px }
+
+  .card{
+    background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(0,0,0,.18)), var(--card);
+    border:1px solid var(--border); border-radius:12px; padding:12px; line-height:1.25;
+    cursor:grab; user-select:none; outline:none; transition:transform .08s, border-color .12s, background-color .12s, box-shadow .12s;
+    box-shadow: 0 6px 18px rgba(5,8,28,.24);
+  }
   .card:active{ cursor:grabbing }
-  .card:hover{ transform:translateY(-1px); border-color:#3a4184 }
-  .card[data-col="B"]{ border-left:4px solid var(--accent) }
+  .card:hover{ transform: translateY(-1px); border-color:#3a4184 }
+  .card[data-col="B"]{ border-left:4px solid var(--acc2) }
   .card[data-col="A"]{ border-left:4px solid #6fd3a6 }
-  .card[data-col="C"]{ border-left:4px solid #f8c77e }
-  .card.highlight{ box-shadow:0 0 0 2px rgba(124,92,255,.35) inset }
-  .card.correct{ border-color:var(--ok); background:#143524 }
-  .card.wrong{ border-color:var(--bad); background:#3a1c1c }
-  .card.locked{ opacity:.95; cursor:default }
-  .toast{ position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:#1f2544; border:1px solid #343c73;
-          padding:10px 14px; border-radius:10px; display:none; font-weight:700; }
-  .toast.show{ display:inline-block }
-  .wires{ position:absolute; inset:0; pointer-events:none }
+  .card[data-col="C"]{ border-left:4px solid var(--acc3) }
+  .card.highlight{ box-shadow: 0 0 0 2px rgba(124,92,255,.35) inset }
+  .card.correct{ border-color:var(--ok); background:linear-gradient(180deg, rgba(51,209,122,.12), rgba(0,0,0,.08)), #153628 }
+  .card.locked{ opacity:.98; cursor:default }
+
+  .chips{ margin-top:8px; display:flex; gap:6px; flex-wrap:wrap }
+  .chip{ font-size:12px; background:#0e1230; border:1px solid var(--border); padding:4px 8px; border-radius:999px; color:#c9cff7 }
+  .chip b{ color:#fff }
+
+  .card.paired{ position:relative; opacity:.98 }
+  .card .tag{ margin-top:6px; font-size:12px; color:#9aa4bf; border:1px dashed #3a4184; padding:3px 8px; border-radius:999px; display:inline-block; background:#0d1022; }
+
+  @keyframes dropFlash{ from{box-shadow:0 0 0 0 rgba(124,92,255,.5)} to{box-shadow:0 0 0 18px rgba(124,92,255,0)} }
+  .card.flash{ animation:dropFlash .35s ease-out }
+
+  .wires{ position:absolute; inset:0; pointer-events:none; filter: drop-shadow(0 0 8px rgba(140,128,255,.15)); }
+
+  .selected{ outline:2px solid var(--acc1); box-shadow:0 0 0 6px rgba(124,92,255,.18) }
+  .hint{ font-size:12px; color:#c9cff7; margin-top:4px }
+
   footer{ color:var(--muted); font-size:13px; text-align:center }
 
-  .panel{ background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(0,0,0,.2)); border:1px solid #2c3258; border-radius:16px; padding:12px; }
-  .lb-head{ display:flex; align-items:center; gap:10px; justify-content:space-between; margin-top:6px }
-  .lb-title{ font-weight:800; color:#c9cff7 }
+  /* Results Summary Modal */
+  .modal{ position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.55); z-index:50 }
+  .modal.open{ display:flex }
+  .modal-card{
+    background:#141938; border:1px solid #343c73; border-radius:14px; padding:16px;
+    width:min(760px,92%); box-shadow: 0 8px 28px rgba(5,8,28,.35)
+  }
+  .modal-card h3{ margin:0 0 8px }
+  .actions{ display:flex; gap:10px; justify-content:flex-end; margin-top:12px }
   table{ width:100%; border-collapse:separate; border-spacing:0 }
   th,td{ text-align:left; padding:8px; vertical-align:top; font-size:14px }
-  thead th{ position:sticky; top:0; background:#1f2544; border-bottom:1px solid #343c73; color:#c9cff7; text-transform:uppercase; font-size:12px; letter-spacing:.5px }
-  tbody tr:nth-child(odd){ background:#161a2e }
-  tbody tr:nth-child(even){ background:#131730 }
-  .tiny{ color:var(--muted); font-size:12px }
-
-  .modal{ position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.5); }
-  .modal.open{ display:flex }
-  .modal-card{ background:#141938; border:1px solid #343c73; border-radius:14px; padding:16px; width:min(420px,92%) }
-  .modal-card h3{ margin:0 0 8px }
-  .field{ display:grid; gap:6px; margin:8px 0 }
-  .field input{ padding:10px; border-radius:10px; border:1px solid #2b3160; background:#0e1230; color:#fff }
-  .actions{ display:flex; gap:10px; justify-content:flex-end; margin-top:10px }
-
-  /* Chips + tags + flash */
-  .chips{ margin-top:8px; display:flex; gap:6px; flex-wrap:wrap }
-  .chip{ font-size:12px; background:#0e1230; border:1px solid #2b3160; padding:4px 8px; border-radius:999px; color:#c9cff7 }
-  .chip b{ color:#fff }
-  .card.paired{ position:relative; opacity:.95 }
-  .card .tag{
-    margin-top:6px; font-size:12px; color:#9aa4bf; border:1px dashed #3a4184;
-    padding:2px 6px; border-radius:8px; display:inline-block; background:#0d1022;
-  }
-  @keyframes dropFlash{ from{box-shadow:0 0 0 0 rgba(124,92,255,.5)} to{box-shadow:0 0 0 8px rgba(124,92,255,0)} }
-  .card.flash{ animation:dropFlash .35s ease-out }
+  thead th{ position:sticky; top:0; background:#1a1f43; border-bottom:1px solid #343c73; color:#c9cff7; text-transform:uppercase; font-size:12px; letter-spacing:.5px }
 </style>
 </head>
 <body>
   <div class="app" role="application">
     <header>
       <h1>Drag & Match — MSK Special Tests</h1>
-      <p class="lead">Drag a <strong>Test</strong> onto its <strong>Body Part</strong>, then the matching <strong>Meaning</strong>. Race the clock!</p>
+      <p class="lead" id="modeHint">Drag a <strong>Test</strong> onto its <strong>Body Part</strong>, then the matching <strong>Meaning</strong>. Race the clock!</p>
+
       <div class="controls">
         <button class="btn" id="btn-shuffle">🔀 New Shuffle</button>
         <button class="btn" id="btn-reset">♻️ Reset</button>
+
         <label class="pill"><input type="checkbox" id="toggle-hints" /> Show hints</label>
 
         <label class="pill" title="Toggle countdown (race) mode">
           <input type="checkbox" id="toggle-countdown" />
-          Countdown mode
+          Countdown
         </label>
         <select id="race-duration" title="Countdown duration">
           <option value="60000">1:00</option>
@@ -98,66 +132,82 @@
           <option value="300000">5:00</option>
         </select>
 
-        <button class="btn" id="btn-share" title="Copy a link with this class code">🔗 Share class link</button>
+        <button class="btn" id="btn-share" title="Copy link with current class">🔗 Share class</button>
+        <button class="btn" id="btn-clear-select" style="display:none">✖️ Clear selection</button>
 
         <div class="meta">
           <span>Solved: <span class="score" id="score">0</span>/<span id="total">0</span></span>
           <span>Tries: <span class="score" id="tries">0</span></span>
           <span>Time: <span class="time" id="time">00:00.0</span></span>
           <span>Best: <span class="time" id="best">—</span></span>
-          <span class="tiny" id="classLabel"></span>
+          <span class="hint-inline" id="classLabel"></span>
         </div>
       </div>
     </header>
 
-    <section class="board" id="board">
+    <section class="board" id="board" aria-label="Matching board">
       <svg class="wires" id="wires" aria-hidden="true"></svg>
 
-      <div class="col" data-col="A"><h2>Body Part <span>A</span></h2><div class="stack" id="col-A"></div></div>
-      <div class="col" data-col="B"><h2>Special Test <span>B</span></h2><div class="stack" id="col-B"></div></div>
-      <div class="col" data-col="C"><h2>Meaning <span>C</span></h2><div class="stack" id="col-C"></div></div>
-    </section>
-
-    <section class="panel" id="panel-lb">
-      <div class="lb-head">
-        <div>
-          <div class="lb-title">Leaderboard <span class="tiny" id="lbClass"></span></div>
-          <div class="tiny">Top 10 fastest runs on this device.</div>
-        </div>
-        <div style="display:flex; gap:8px">
-          <button class="btn" id="btn-export">⬇️ CSV</button>
-          <button class="btn" id="btn-reset-lb" title="Clear leaderboard">🗑 Reset</button>
-        </div>
+      <div class="col" data-col="A" aria-label="Body parts">
+        <h2>Body Part <span class="tag-left">A</span></h2>
+        <div class="stack" id="col-A" role="list"></div>
       </div>
-      <div style="overflow:auto; max-height:40vh; margin-top:8px">
-        <table aria-label="Leaderboard table">
-          <thead><tr><th>#</th><th>Name</th><th>Time</th><th>Tries</th><th>Date</th></tr></thead>
-          <tbody id="lb-body"></tbody>
-        </table>
+
+      <div class="col" data-col="B" aria-label="Special tests">
+        <h2>Special Test <span class="tag-mid">B</span></h2>
+        <div class="stack" id="col-B" role="list"></div>
+      </div>
+
+      <div class="col" data-col="C" aria-label="Meanings">
+        <h2>Meaning <span class="tag-right">C</span></h2>
+        <div class="stack" id="col-C" role="list"></div>
       </div>
     </section>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <footer>Tip: use <code>?class=GROUPA</code> in the URL to separate classes (e.g., <code>.../?class=Year1</code>).</footer>
+    <footer>Tip: add <code>?class=YEAR1</code> to your URL to keep separate best times per class.</footer>
   </div>
 
-  <div class="modal" id="modal">
-    <div class="modal-card">
-      <h3 id="modalTitle">Great run! Save your time to the leaderboard</h3>
-      <div class="field">
-        <label for="name">Name / Initials</label>
-        <input id="name" maxlength="20" placeholder="e.g., AB or Alex B" />
+  <!-- Results Summary Modal -->
+  <div class="modal" id="summaryModal" aria-hidden="true">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="sumTitle">
+      <h3 id="sumTitle">Results summary</h3>
+      <div class="hint-inline" id="sumHeadline">—</div>
+
+      <div style="display:flex; gap:14px; flex-wrap:wrap; margin:10px 0;">
+        <div><b>Time:</b> <span id="sumTime">00:00.0</span></div>
+        <div><b>Tries:</b> <span id="sumTries">0</span></div>
+        <div><b>Wrong attempts:</b> <span id="sumWrong">0</span></div>
+        <div><b>Accuracy:</b> <span id="sumAcc">100%</span></div>
       </div>
-      <div class="tiny">Time: <span id="modalTime">00:00.0</span> • Tries: <span id="modalTries">0</span></div>
+
+      <div style="max-height:45vh; overflow:auto; border:1px solid #2b3160; border-radius:10px;">
+        <table aria-label="Mistakes table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Body part</th>
+              <th>Test chosen</th>
+              <th>Meaning chosen</th>
+              <th>Note</th>
+            </tr>
+          </thead>
+          <tbody id="sum-body"></tbody>
+        </table>
+      </div>
+
       <div class="actions">
-        <button class="btn" id="btn-cancel">Cancel</button>
-        <button class="btn" id="btn-save">Save</button>
+        <button class="btn" id="btn-sum-csv">⬇️ Download CSV</button>
+        <button class="btn" id="btn-sum-close">Play again</button>
       </div>
     </div>
   </div>
 
 <script>
-/* ========= Dataset ========= */
+/* --- Capability detection --- */
+const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+
+/* --- DATA (Tinel’s removed) --- */
 const DATA = [
   { id:"shoulder-hawkins-imp", A:"Shoulder", B:"Hawkins–Kennedy Test", C:"Screens for subacromial impingement" },
   { id:"shoulder-emptycan-ss", A:"Shoulder", B:"Jobe / Empty Can Test", C:"Assesses supraspinatus tendinopathy or tear" },
@@ -175,7 +225,6 @@ const DATA = [
   { id:"elbow-maudsley-tennis", A:"Elbow", B:"Maudsley’s Test", C:"Pain with resisted 3rd finger extension → tennis elbow" },
   { id:"wrist-finkelstein", A:"Wrist/Hand", B:"Finkelstein’s Test", C:"Detects de Quervain’s tenosynovitis" },
   { id:"wrist-phalen-cts", A:"Wrist/Hand", B:"Phalen’s Test", C:"Provokes carpal tunnel syndrome symptoms" },
-  { id:"wrist-tinel-cts", A:"Wrist/Hand", B:"Tinel’s at Carpal Tunnel", C:"Paresthesia over median nerve (CTS)" },
   { id:"ankle-thompson-achilles", A:"Ankle/Foot", B:"Thompson Test", C:"Checks for Achilles tendon rupture" },
   { id:"ankle-antdrawer-atfl", A:"Ankle/Foot", B:"Anterior Drawer Test (ankle)", C:"Assesses ATFL laxity/tear" },
   { id:"foot-morton-neuroma", A:"Ankle/Foot", B:"Morton’s Squeeze Test", C:"Suggests interdigital (Morton’s) neuroma" },
@@ -185,21 +234,19 @@ const DATA = [
   { id:"tost-roos", A:"Thoracic Outlet", B:"Roos / EAST", C:"Provocation of TOS symptoms with sustained elevation" },
 ];
 
-/* ========= Class namespace & share ========= */
+/* --- Class code & share --- */
 const params = new URLSearchParams(location.search);
 const CLASS_CODE = (params.get("class") || "default").trim();
 document.getElementById("classLabel").textContent = `Class: ${CLASS_CODE}`;
-document.getElementById("lbClass").textContent = `(class: ${CLASS_CODE})`;
 document.getElementById("btn-share").addEventListener("click", async ()=>{
   const url = `${location.origin}${location.pathname}?class=${encodeURIComponent(CLASS_CODE||"default")}`;
   try{ await navigator.clipboard.writeText(url); toast("✅ Class link copied!"); }catch{ prompt("Copy this link:", url); }
 });
 
-/* ========= Keys ========= */
+/* --- Local Best key (kept) --- */
 const LS_KEY_BEST = `mskMatchBestMs__${CLASS_CODE}`;
-const LS_KEY_LB   = `mskMatchLeaderboardV1__${CLASS_CODE}`;
 
-/* ========= State ========= */
+/* --- State --- */
 const state = {
   tries: 0,
   lockedIds: new Set(),
@@ -208,15 +255,19 @@ const state = {
   nodeMap: { A:[], B:[], C:[] },
   timerRunning:false, tick:null,
   mode:"stopwatch", raceLimitMs:120000, startMs:0, elapsedMs:0,
+  selected: null, // mobile selection { col:'B'|'C', id, node }
+  mistakes: []    // results summary rows
 };
+
 const $ = s => document.querySelector(s);
 const el = (t,p={},...kids)=>{ const n=Object.assign(document.createElement(t),p); kids.forEach(k=>n.append(k)); return n; };
 const shuffle = a => { const b=a.slice(); for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1)); [b[i],b[j]]=[b[j],b[i]];} return b; };
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 
-/* ========= Toast ========= */
+/* --- Toast --- */
 function toast(msg){ const t=$("#toast"); t.textContent=msg; t.className="toast show"; setTimeout(()=>t.className="toast",1400); }
 
-/* ========= Time helpers ========= */
+/* --- Time helpers --- */
 function formatMs(ms){ const p=Math.max(0,ms); const m=Math.floor(p/60000), s=Math.floor((p%60000)/1000), d=Math.floor((p%1000)/100); return `${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}.${d}`; }
 function updateTimeUI(){
   if(state.mode==="stopwatch"){
@@ -229,7 +280,7 @@ function updateTimeUI(){
     $("#best").textContent = "—";
   }
 }
-function startTimer(){
+function startTimerIfNeeded(){
   if(state.timerRunning) return;
   state.timerRunning = true;
   state.startMs = performance.now();
@@ -243,7 +294,7 @@ function startTimer(){
         clearInterval(state.tick); state.tick=null; state.timerRunning=false;
         $("#time").textContent = "00:00.0";
         toast("⏰ Time up — DNF");
-        showSaveModal(true);
+        showSummary(true); // show results on timeout
       } else { updateTimeUI(); }
     }
   }, 100);
@@ -256,35 +307,19 @@ function stopTimerAndMaybeSetBest(){
     updateTimeUI();
     const bestRaw = localStorage.getItem(LS_KEY_BEST);
     if(!bestRaw || state.elapsedMs < Number(bestRaw)){ localStorage.setItem(LS_KEY_BEST, String(state.elapsedMs)); toast("🏁 New best time!"); }
-  } else { state.elapsedMs = performance.now() - state.startMs; updateTimeUI(); }
+  } else {
+    state.elapsedMs = performance.now() - state.startMs; updateTimeUI();
+  }
 }
 function resetTimerUI(){ if(state.tick){ clearInterval(state.tick); state.tick=null; } state.timerRunning=false; state.elapsedMs=0; state.startMs=0; updateTimeUI(); }
 
-/* ========= Leaderboard ========= */
-function loadLB(){ try{ return JSON.parse(localStorage.getItem(LS_KEY_LB)||"[]"); }catch{ return []; } }
-function saveLB(rows){ localStorage.setItem(LS_KEY_LB, JSON.stringify(rows)); }
-function addToLB(name, ms, tries){ const rows=loadLB(); rows.push({name:name||"Anon", ms, tries, date:new Date().toISOString()}); rows.sort((a,b)=>a.ms-b.ms); saveLB(rows.slice(0,20)); renderLB(); }
-function renderLB(){
-  const tbody=$("#lb-body"); const rows=loadLB().slice(0,10);
-  tbody.innerHTML=""; if(rows.length===0){ tbody.appendChild(el("tr",{}, el("td",{colSpan:5},"No scores yet — be the first!"))); return; }
-  rows.forEach((r,i)=>{ const tr=document.createElement("tr"); const dt=new Date(r.date);
-    tr.innerHTML=`<td>${i+1}</td><td>${escapeHtml(r.name)}</td><td>${formatMs(r.ms)}</td><td>${r.tries}</td><td>${dt.toLocaleDateString()} ${dt.toLocaleTimeString()}</td>`;
-    tbody.appendChild(tr);
-  });
-}
-function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
-function exportLB(){
-  const rows=loadLB().sort((a,b)=>a.ms-b.ms), header=["Rank","Name","Time (ms)","Time (mm:ss.d)","Tries","Date ISO"], lines=[header.join(",")];
-  rows.forEach((r,i)=> lines.push([i+1, `"${r.name.replace(/"/g,'""')}"`, r.ms, formatMs(r.ms), r.tries, r.date].join(",")));
-  const blob=new Blob([lines.join("\n")],{type:"text/csv;charset=utf-8"}), url=URL.createObjectURL(blob);
-  const a=document.createElement("a"); a.href=url; a.download=`leaderboard_${CLASS_CODE}.csv`; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),1000);
-}
-
-/* ========= Build Board ========= */
+/* --- Build board --- */
 function dedupeByLabel(arr){ const seen=new Set(), out=[]; for(const x of arr){ if(!seen.has(x.label)){ seen.add(x.label); out.push(x); } } return out; }
 function buildBoard(){
   state.tries=0; state.lockedIds.clear();
   state.pairAB.clear(); state.pairAC.clear(); state.revB.clear(); state.revC.clear();
+  state.mistakes = []; // clear previous mistakes
+  clearSelection();
   $("#tries").textContent="0"; $("#score").textContent="0"; $("#total").textContent=String(DATA.length);
   ["A","B","C"].forEach(k=>$("#col-"+k).innerHTML="");
   state.nodeMap={A:[],B:[],C:[]};
@@ -298,48 +333,96 @@ function buildBoard(){
   for(const card of packA){ const node=renderCard(card); $("#col-A").append(node); state.nodeMap.A.push({data:card,node}); }
   for(const card of packB){ const node=renderCard(card); $("#col-B").append(node); state.nodeMap.B.push({data:card,node}); }
   for(const card of packC){ const node=renderCard(card); $("#col-C").append(node); state.nodeMap.C.push({data:card,node}); }
+
+  const modeHint = document.getElementById("modeHint");
+  if(isTouch){ modeHint.innerHTML = 'On mobile: <span class="hint">tap a <b>Test</b> → tap a <b>Body Part</b>, then tap a <b>Meaning</b> → tap the same Body Part</span>.'; }
+  else { modeHint.textContent = 'Drag a Test onto its Body Part, then the matching Meaning. Race the clock!'; }
 }
 
-/* ========= Cards & DnD ========= */
+/* --- Cards & interactions --- */
 function renderCard(card){
-  const node = el("div",{className:"card","data-col":card.col,"data-id":card.id,draggable:card.col!=="A"},card.label);
+  const node = el("div",{className:"card","data-col":card.col,"data-id":card.id},card.label);
+
   if(card.col==="A"){
     const chips=document.createElement("div"); chips.className="chips"; node.appendChild(chips);
-    node.addEventListener("dragover", e=>{ if(dragPayload && ["B","C"].includes(dragPayload.col) && !node.classList.contains("locked")) e.preventDefault(); node.classList.add("highlight"); });
-    node.addEventListener("dragleave", ()=> node.classList.remove("highlight"));
-    node.addEventListener("drop", e=>onDropOnA(e,node));
+    if(isTouch){
+      node.style.cursor = "pointer";
+      node.addEventListener("click", ()=> onTapBodyPart(node));
+    } else {
+      node.addEventListener("dragover", e=>{
+        if(dragPayload && ["B","C"].includes(dragPayload.col) && !node.classList.contains("locked")) e.preventDefault();
+        node.classList.add("highlight");
+      });
+      node.addEventListener("dragleave", ()=> node.classList.remove("highlight"));
+      node.addEventListener("drop", e=>onDropOnA(e,node));
+    }
   } else {
-    node.addEventListener("dragstart", e=>{
-      if(node.classList.contains("locked")){ e.preventDefault(); return; }
-      dragPayload={col:card.col,id:card.id,node};
-      node.classList.add("highlight");
-      startTimer();
-    });
-    node.addEventListener("dragend", ()=>{
-      dragPayload=null;
-      node.classList.remove("highlight");
-      stopAutoScroll();   // <-- stop edge scrolling after drag ends
-    });
+    if(isTouch){
+      node.style.cursor = "pointer";
+      node.addEventListener("click", ()=>{
+        if(node.classList.contains("locked")) return;
+        startTimerIfNeeded();
+        selectBC(node);
+      });
+    } else {
+      node.setAttribute("draggable","true");
+      node.addEventListener("dragstart", e=>{
+        if(node.classList.contains("locked")){ e.preventDefault(); return; }
+        dragPayload={col:card.col,id:card.id,node};
+        node.classList.add("highlight");
+        startTimerIfNeeded();
+      });
+      node.addEventListener("dragend", ()=>{
+        dragPayload=null;
+        node.classList.remove("highlight");
+        stopAutoScroll();
+      });
+    }
   }
   return node;
 }
 
 let dragPayload=null;
 
-/* ========= Visual helpers ========= */
-function updateAChips(aNode){
-  const chips=aNode.querySelector('.chips'); if(!chips) return;
-  const bId=state.pairAB.get(aNode), cId=state.pairAC.get(aNode);
-  const bText=bId ? (DATA.find(d=>d.id===bId)?.B || "Test") : null;
-  const cText=cId ? (DATA.find(d=>d.id===cId)?.C || "Meaning") : null;
-  chips.innerHTML=""; if(bText) chips.appendChild(el("span",{className:"chip"}, el("span",{},"Test: "), el("b",{},bText)));
-  if(cText) chips.appendChild(el("span",{className:"chip"}, el("span",{},"Meaning: "), el("b",{},cText)));
+/* --- Mobile tap-to-link --- */
+function selectBC(node){
+  if(state.selected && state.selected.node === node){ clearSelection(); return; }
+  if(state.selected) state.selected.node.classList.remove("selected");
+  state.selected = { col: node.getAttribute("data-col"), id: node.getAttribute("data-id"), node };
+  node.classList.add("selected");
+  document.getElementById("btn-clear-select").style.display = "inline-block";
+  toast(`Selected ${state.selected.col==="B" ? "Test" : "Meaning"} — now tap a Body Part`);
 }
-function markCardLinked(col,id,aLabel){ const node=findNodeById(col,id); if(!node) return; const old=node.querySelector('.tag'); if(old) old.remove(); node.classList.add('paired'); node.appendChild(el("div",{className:"tag"},`Linked to ${aLabel}`)); }
-function unmarkCardLinked(col,id){ const node=findNodeById(col,id); if(!node) return; const old=node.querySelector('.tag'); if(old) old.remove(); node.classList.remove('paired'); }
-function flash(node){ node.classList.add('flash'); setTimeout(()=>node.classList.remove('flash'),350); }
+function clearSelection(){
+  if(state.selected){ state.selected.node.classList.remove("selected"); }
+  state.selected = null;
+  document.getElementById("btn-clear-select").style.display = "none";
+}
+document.getElementById("btn-clear-select").addEventListener("click", clearSelection);
 
-/* ========= DnD drop handler ========= */
+function onTapBodyPart(aNode){
+  if(!state.selected){ toast("Tap a Test/Meaning first, then a Body Part."); return; }
+  const kind = state.selected.col, draggedId = state.selected.id;
+  const aLabel = aNode.firstChild.nodeType===3 ? aNode.firstChild.nodeValue.trim() : aNode.childNodes[0].textContent.trim();
+
+  if(kind==="B" && state.revB.has(draggedId)){
+    const oldA=state.revB.get(draggedId);
+    state.pairAB.delete(oldA); updateAChips(oldA); removeLine(`wire-ab-${draggedId}`); unmarkCardLinked("B",draggedId);
+  }
+  if(kind==="C" && state.revC.has(draggedId)){
+    const oldA=state.revC.get(draggedId);
+    state.pairAC.delete(oldA); updateAChips(oldA); removeLine(`wire-ac-${draggedId}`); unmarkCardLinked("C",draggedId);
+  }
+
+  if(kind==="B"){ state.pairAB.set(aNode,draggedId); state.revB.set(draggedId,aNode); markCardLinked("B",draggedId,aLabel); }
+  if(kind==="C"){ state.pairAC.set(aNode,draggedId); state.revC.set(draggedId,aNode); markCardLinked("C",draggedId,aLabel); }
+
+  flash(aNode); updateAChips(aNode); drawProvisionalWiresForA(aNode);
+  clearSelection();
+  if(state.pairAB.has(aNode) && state.pairAC.has(aNode)) checkTripleForA(aNode);
+}
+
+/* --- Desktop drop handler --- */
 function onDropOnA(e,aNode){
   e.preventDefault();
   aNode.classList.remove("highlight");
@@ -360,14 +443,24 @@ function onDropOnA(e,aNode){
   if(kind==="B"){ state.pairAB.set(aNode,draggedId); state.revB.set(draggedId,aNode); markCardLinked("B",draggedId,aLabel); }
   if(kind==="C"){ state.pairAC.set(aNode,draggedId); state.revC.set(draggedId,aNode); markCardLinked("C",draggedId,aLabel); }
 
-  flash(aNode);
-  updateAChips(aNode);
-  drawProvisionalWiresForA(aNode);
-
+  flash(aNode); updateAChips(aNode); drawProvisionalWiresForA(aNode);
   if(state.pairAB.has(aNode) && state.pairAC.has(aNode)) checkTripleForA(aNode);
 }
 
-/* ========= Wires ========= */
+/* --- Visual helpers --- */
+function updateAChips(aNode){
+  const chips=aNode.querySelector('.chips'); if(!chips) return;
+  const bId=state.pairAB.get(aNode), cId=state.pairAC.get(aNode);
+  const bText=bId ? (DATA.find(d=>d.id===bId)?.B || "Test") : null;
+  const cText=cId ? (DATA.find(d=>d.id===cId)?.C || "Meaning") : null;
+  chips.innerHTML=""; if(bText) chips.appendChild(el("span",{className:"chip"}, el("span",{},"Test: "), el("b",{},bText)));
+  if(cText) chips.appendChild(el("span",{className:"chip"}, el("span",{},"Meaning: "), el("b",{},cText)));
+}
+function markCardLinked(col,id,aLabel){ const node=findNodeById(col,id); if(!node) return; const old=node.querySelector('.tag'); if(old) old.remove(); node.classList.add('paired'); node.appendChild(el("div",{className:"tag"},`Linked to ${aLabel}`)); }
+function unmarkCardLinked(col,id){ const node=findNodeById(col,id); if(!node) return; const old=node.querySelector('.tag'); if(old) old.remove(); node.classList.remove('paired'); }
+function flash(node){ node.classList.add('flash'); setTimeout(()=>node.classList.remove('flash'),350); }
+
+/* --- Wires --- */
 function defineGradientsOnce(){
   if(document.getElementById("gradAB")) return;
   const svg=$("#wires"); const defs=document.createElementNS("http://www.w3.org/2000/svg","defs");
@@ -381,7 +474,8 @@ function ensureLine(id,stroke){ let line=document.getElementById(id); if(!line){
 function removeLine(id){ const n=document.getElementById(id); if(n) n.remove(); }
 function boardOffset(){ const b=$("#board").getBoundingClientRect(); return {left:b.left+window.scrollX, top:b.top+window.scrollY}; }
 function mid(node){ const r=node.getBoundingClientRect(); return {x:r.left+r.width/2, y:r.top+r.height/2}; }
-function curve(p1,p2){ const dx=(p2.x-p1.x)*0.35, c1={x:p1.x+dx,y:p1.y}, c2={x:p2.x-dx,y:p2.y}, off=boardOffset();
+function curve(p1,p2){
+  const dx=(p2.x-p1.x)*0.35, c1={x:p1.x+dx,y:p1.y}, c2={x:p2.x-dx,y:p2.y}, off=boardOffset();
   const P1={x:p1.x-off.left,y:p1.y-off.top}, C1={x:c1.x-off.left,y:c1.y-off.top}, C2={x:c2.x-off.left,y:c2.y-off.top}, P2={x:p2.x-off.left,y:p2.y-off.top};
   return `M ${P1.x},${P1.y} C ${C1.x},${C1.y} ${C2.x},${C2.y} ${P2.x},${P2.y}`;
 }
@@ -393,7 +487,7 @@ function drawProvisionalWiresForA(aNode){
   if(chosenC){ const cNode=findNodeById("C",chosenC); if(cNode){ const cPos=mid(cNode); const id=`wire-ac-${chosenC}`; const path=curve(aPos,cPos); const line=ensureLine(id,"url(#gradAC)"); line.setAttribute("d",path); } }
 }
 
-/* ========= Checking & Locking ========= */
+/* --- Checking & Locking --- */
 function checkTripleForA(aNode){
   state.tries++; $("#tries").textContent=String(state.tries);
   const chosenB=state.pairAB.get(aNode), chosenC=state.pairAC.get(aNode);
@@ -403,6 +497,7 @@ function checkTripleForA(aNode){
   const labelMatches=triple && triple.A===aLabel;
   const isCorrect = sameTriple && labelMatches;
   const abId=`wire-ab-${chosenB}`, acId=`wire-ac-${chosenC}`;
+
   if(isCorrect){
     ensureLine(abId,"#2ecc71"); ensureLine(acId,"#2ecc71");
     lockTriple(chosenB);
@@ -411,8 +506,26 @@ function checkTripleForA(aNode){
     updateAChips(aNode);
   } else {
     ensureLine(abId,"#ff6b6b"); ensureLine(acId,"#ff6b6b");
+    // Record a mistake
+    const bpLabel = aNode.firstChild.nodeType===3 ? aNode.firstChild.nodeValue.trim() : aNode.childNodes[0].textContent.trim();
+    const chosenBLabel = DATA.find(d=>d.id===chosenB)?.B || "(test not found)";
+    const chosenCLabel = DATA.find(d=>d.id===chosenC)?.C || "(meaning not found)";
+    const note = sameTriple
+      ? `That pair belongs to ${(DATA.find(d=>d.id===chosenB)?.A || "other body part")}`
+      : "Test & Meaning must come from the same clinical test";
+    state.mistakes.push({
+      time: new Date().toISOString(),
+      bodyPart: bpLabel,
+      test: chosenBLabel,
+      meaning: chosenCLabel,
+      note
+    });
+
     toast("Not quite — adjust the links.");
-    setTimeout(()=>{ if(!state.lockedIds.has(chosenB)) removeLine(abId); if(!state.lockedIds.has(chosenC)) removeLine(acId); },900);
+    setTimeout(()=>{
+      if(!state.lockedIds.has(chosenB)) removeLine(abId);
+      if(!state.lockedIds.has(chosenC)) removeLine(acId);
+    },900);
   }
   refreshWiresDeferred();
 }
@@ -429,10 +542,8 @@ function lockTriple(tripleId){
   if(aNode){ drawFinalWiresForTriple(aNode,tripleId); }
   if(state.lockedIds.size===DATA.length){
     stopTimerAndMaybeSetBest();
-    if(!(state.mode==="countdown" && (performance.now()-state.startMs)>=state.raceLimitMs)){
-      showSaveModal(false);
-      toast("All matched — you win! 🏆");
-    }
+    showSummary(false); // show end-of-quiz summary
+    toast("All matched — you win! 🏆");
   }
 }
 function drawFinalWiresForTriple(aNode,tripleId){
@@ -442,7 +553,7 @@ function drawFinalWiresForTriple(aNode,tripleId){
   ab.setAttribute("d",curve(bPos,aPos)); ac.setAttribute("d",curve(aPos,cPos));
 }
 
-/* ========= Wire maintenance ========= */
+/* --- Wire maintenance --- */
 let refreshTimer=null;
 function refreshWires(){
   for(const tripleId of state.lockedIds){
@@ -458,57 +569,99 @@ function refreshWiresDeferred(){ clearTimeout(refreshTimer); refreshTimer=setTim
 window.addEventListener("resize", refreshWiresDeferred);
 document.addEventListener("scroll", refreshWiresDeferred, true);
 
-/* ========= Timer UI & modal ========= */
-function showSaveModal(isDNF){
-  $("#modalTries").textContent=String(state.tries);
+/* --- Results Summary --- */
+function showSummary(isDNF){
+  const solved = state.lockedIds.size;
+  const total = DATA.length;
+  const wrong = Math.max(0, state.tries - solved);
   const timeText = state.mode==="stopwatch" ? formatMs(state.elapsedMs)
-                 : (isDNF ? "DNF" : `${formatMs(state.elapsedMs)} (finished with ${formatMs(state.raceLimitMs - state.elapsedMs)} left)`);
-  $("#modalTime").textContent=timeText;
-  $("#modalTitle").textContent=isDNF ? "Time up! (DNF) — run again?" : "Great run! Save your time to the leaderboard";
-  $("#btn-save").disabled=!!isDNF;
-  $("#modal").classList.add("open"); if(!isDNF) $("#name").focus();
-}
-function closeModal(){ $("#modal").classList.remove("open"); }
-document.getElementById("btn-cancel").addEventListener("click", closeModal);
-document.getElementById("btn-save").addEventListener("click", ()=>{ const name=(document.getElementById("name").value||"").trim().slice(0,20); addToLB(name||"Anon", state.elapsedMs, state.tries); document.getElementById("name").value=""; closeModal(); });
+                 : (isDNF ? "DNF" : formatMs(state.elapsedMs));
+  const headline = isDNF ? `Time up — solved ${solved}/${total}` : `Finished — solved ${solved}/${total}`;
 
-/* ========= Mode controls ========= */
+  document.getElementById("sumHeadline").textContent = headline;
+  document.getElementById("sumTime").textContent = timeText;
+  document.getElementById("sumTries").textContent = String(state.tries);
+  const acc = (state.tries>0) ? Math.round(100 * solved / state.tries) : (solved===total ? 100 : 0);
+  document.getElementById("sumAcc").textContent = isFinite(acc) ? `${acc}%` : (solved===total ? "100%" : "—");
+  document.getElementById("sumWrong").textContent = String(wrong);
+
+  const tbody = document.getElementById("sum-body");
+  tbody.innerHTML = "";
+  if(state.mistakes.length===0){
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td colspan="5" style="padding:10px">No mistakes 🎉</td>`;
+    tbody.appendChild(tr);
+  } else {
+    state.mistakes.forEach((m,i)=>{
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${i+1}</td>
+        <td>${escapeHtml(m.bodyPart)}</td>
+        <td>${escapeHtml(m.test)}</td>
+        <td>${escapeHtml(m.meaning)}</td>
+        <td>${escapeHtml(m.note)}</td>`;
+      tbody.appendChild(tr);
+    });
+  }
+  document.getElementById("summaryModal").classList.add("open");
+}
+function closeSummary(){
+  document.getElementById("summaryModal").classList.remove("open");
+  buildBoard(); // start a fresh round
+}
+document.getElementById("btn-sum-close").addEventListener("click", closeSummary);
+document.getElementById("btn-sum-csv").addEventListener("click", ()=>{
+  const header = ["#", "Body part", "Test chosen", "Meaning chosen", "Note", "When"];
+  const lines = [header.join(",")];
+  state.mistakes.forEach((m,i)=>{
+    const row = [
+      i+1, m.bodyPart, m.test, m.meaning, m.note, m.time
+    ].map(v => `"${String(v).replace(/"/g,'""')}"`);
+    lines.push(row.join(","));
+  });
+  const blob = new Blob([lines.join("\n")], { type:"text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = "msk_match_results.csv";
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+});
+
+/* --- Mode controls --- */
 const toggleCountdown=document.getElementById("toggle-countdown");
 const selDuration=document.getElementById("race-duration");
 toggleCountdown.addEventListener("change", ()=>{ state.mode=toggleCountdown.checked?"countdown":"stopwatch"; resetTimerUI(); toast(state.mode==="countdown"?"Countdown mode on ⏳":"Stopwatch mode on ⏱️"); });
 selDuration.addEventListener("change", ()=>{ state.raceLimitMs=Number(selDuration.value||120000); if(state.mode==="countdown"){ resetTimerUI(); toast(`Countdown set to ${formatMs(state.raceLimitMs)}`); }});
 
-/* ========= Leaderboard controls ========= */
-document.getElementById("btn-reset-lb").addEventListener("click", ()=>{ if(confirm(`Reset leaderboard for class "${CLASS_CODE}"?`)){ localStorage.removeItem(LS_KEY_LB); renderLB(); }});
-document.getElementById("btn-export").addEventListener("click", exportLB);
+/* --- Desktop auto-scroll while dragging --- */
+if(!isTouch){
+  const SCROLL_EDGE = 80, SCROLL_SPEED = 18;
+  let _dragScrolling = { dir: 0, raf: null };
+  function _scrollTick(){ if(_dragScrolling.dir!==0){ window.scrollBy(0, _dragScrolling.dir*SCROLL_SPEED); _dragScrolling.raf=requestAnimationFrame(_scrollTick); } else if(_dragScrolling.raf){ cancelAnimationFrame(_dragScrolling.raf); _dragScrolling.raf=null; } }
+  function handleDragOverAutoScroll(e){
+    e.preventDefault();
+    const y=e.clientY, h=window.innerHeight;
+    const newDir = (y < SCROLL_EDGE) ? -1 : (y > h - SCROLL_EDGE ? 1 : 0);
+    if(newDir!==_dragScrolling.dir){
+      _dragScrolling.dir=newDir;
+      if(_dragScrolling.dir!==0 && !_dragScrolling.raf){ _dragScrolling.raf=requestAnimationFrame(_scrollTick); }
+      else if(_dragScrolling.dir===0){ _scrollTick(); }
+    }
+  }
+  function stopAutoScroll(){ _dragScrolling.dir=0; if(_dragScrolling.raf){ cancelAnimationFrame(_dragScrolling.raf); _dragScrolling.raf=null; } }
+  document.addEventListener('dragover', handleDragOverAutoScroll, { passive:false });
+  document.addEventListener('dragleave', stopAutoScroll);
+  document.addEventListener('drop', stopAutoScroll);
+}
 
-/* ========= Controls ========= */
+/* --- Controls --- */
 $("#btn-shuffle").addEventListener("click",()=>{ buildBoard(); toast("New shuffle ready 🔀"); });
 $("#btn-reset").addEventListener("click",()=>{ buildBoard(); toast("Board reset ♻️"); });
 
-/* ========= Auto-scroll while dragging (NEW) ========= */
-const SCROLL_EDGE = 80;   // px from viewport edge
-const SCROLL_SPEED = 18;  // px per frame
-let _dragScrolling = { dir: 0, raf: null };
-function _scrollTick(){ if(_dragScrolling.dir!==0){ window.scrollBy(0, _dragScrolling.dir*SCROLL_SPEED); _dragScrolling.raf=requestAnimationFrame(_scrollTick); } else if(_dragScrolling.raf){ cancelAnimationFrame(_dragScrolling.raf); _dragScrolling.raf=null; } }
-function handleDragOverAutoScroll(e){
-  e.preventDefault();
-  const y=e.clientY, h=window.innerHeight;
-  const newDir = (y < SCROLL_EDGE) ? -1 : (y > h - SCROLL_EDGE ? 1 : 0);
-  if(newDir!==_dragScrolling.dir){
-    _dragScrolling.dir=newDir;
-    if(_dragScrolling.dir!==0 && !_dragScrolling.raf){ _dragScrolling.raf=requestAnimationFrame(_scrollTick); }
-    else if(_dragScrolling.dir===0){ _scrollTick(); }
-  }
-}
-function stopAutoScroll(){ _dragScrolling.dir=0; if(_dragScrolling.raf){ cancelAnimationFrame(_dragScrolling.raf); _dragScrolling.raf=null; } }
-document.addEventListener('dragover', handleDragOverAutoScroll, { passive:false });
-document.addEventListener('dragleave', stopAutoScroll);
-document.addEventListener('drop', stopAutoScroll);
-
-/* ========= Init ========= */
+/* --- Init --- */
 function showBest(){ const raw=localStorage.getItem(LS_KEY_BEST); $("#best").textContent = raw ? formatMs(Number(raw)) : "—"; }
-renderLB(); showBest(); buildBoard();
+function defineGradientsOnce(){ if(document.getElementById("gradAB")) return; const svg=$("#wires"); const defs=document.createElementNS("http://www.w3.org/2000/svg","defs"); const gradAB=document.createElementNS("http://www.w3.org/2000/svg","linearGradient"); gradAB.id="gradAB"; gradAB.setAttribute("x1","0%"); gradAB.setAttribute("x2","100%"); gradAB.innerHTML='<stop offset="0%" stop-color="#7c5cff"/><stop offset="100%" stop-color="#00d1ff"/>'; const gradAC=document.createElementNS("http://www.w3.org/2000/svg","linearGradient"); gradAC.id="gradAC"; gradAC.setAttribute("x1","0%"); gradAC.setAttribute("x2","100%"); gradAC.innerHTML='<stop offset="0%" stop-color="#f8c77e"/><stop offset="100%" stop-color="#7c5cff"/>'; defs.appendChild(gradAB); defs.appendChild(gradAC); svg.appendChild(defs); }
+showBest(); buildBoard();
 </script>
 </body>
 </html>
