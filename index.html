@@ -28,6 +28,7 @@
         border:1px solid #2c3258; border-radius:16px; padding:12px; display:grid; gap:10px; }
   .col h2{ margin:0; font-size:14px; letter-spacing:1px; text-transform:uppercase; color:#c9cff7; display:flex; justify-content:space-between }
   .stack{ display:grid; gap:10px; min-height:320px }
+
   .card{ background:var(--card); border:1px solid #2b3160; border-radius:12px; padding:12px; line-height:1.25;
          cursor:grab; user-select:none; outline:none; transition:transform .08s ease, border-color .12s ease, background-color .12s ease, box-shadow .12s ease; }
   .card:active{ cursor:grabbing }
@@ -62,19 +63,30 @@
   .field{ display:grid; gap:6px; margin:8px 0 }
   .field input{ padding:10px; border-radius:10px; border:1px solid #2b3160; background:#0e1230; color:#fff }
   .actions{ display:flex; gap:10px; justify-content:flex-end; margin-top:10px }
+
+  /* Chips + tags + flash */
+  .chips{ margin-top:8px; display:flex; gap:6px; flex-wrap:wrap }
+  .chip{ font-size:12px; background:#0e1230; border:1px solid #2b3160; padding:4px 8px; border-radius:999px; color:#c9cff7 }
+  .chip b{ color:#fff }
+  .card.paired{ position:relative; opacity:.95 }
+  .card .tag{
+    margin-top:6px; font-size:12px; color:#9aa4bf; border:1px dashed #3a4184;
+    padding:2px 6px; border-radius:8px; display:inline-block; background:#0d1022;
+  }
+  @keyframes dropFlash{ from{box-shadow:0 0 0 0 rgba(124,92,255,.5)} to{box-shadow:0 0 0 8px rgba(124,92,255,0)} }
+  .card.flash{ animation:dropFlash .35s ease-out }
 </style>
 </head>
 <body>
   <div class="app" role="application">
     <header>
       <h1>Drag & Match — MSK Special Tests</h1>
-      <p class="lead">Drag a <strong>Test</strong> (middle) onto its <strong>Body Part</strong> (left), then drag the matching <strong>Meaning</strong> (right). Race the clock!</p>
+      <p class="lead">Drag a <strong>Test</strong> onto its <strong>Body Part</strong>, then the matching <strong>Meaning</strong>. Race the clock!</p>
       <div class="controls">
         <button class="btn" id="btn-shuffle">🔀 New Shuffle</button>
         <button class="btn" id="btn-reset">♻️ Reset</button>
         <label class="pill"><input type="checkbox" id="toggle-hints" /> Show hints</label>
 
-        <!-- Mode controls -->
         <label class="pill" title="Toggle countdown (race) mode">
           <input type="checkbox" id="toggle-countdown" />
           Countdown mode
@@ -86,7 +98,6 @@
           <option value="300000">5:00</option>
         </select>
 
-        <!-- Share class link -->
         <button class="btn" id="btn-share" title="Copy a link with this class code">🔗 Share class link</button>
 
         <div class="meta">
@@ -107,7 +118,6 @@
       <div class="col" data-col="C"><h2>Meaning <span>C</span></h2><div class="stack" id="col-C"></div></div>
     </section>
 
-    <!-- Leaderboard -->
     <section class="panel" id="panel-lb">
       <div class="lb-head">
         <div>
@@ -131,7 +141,6 @@
     <footer>Tip: use <code>?class=GROUPA</code> in the URL to separate classes (e.g., <code>.../?class=Year1</code>).</footer>
   </div>
 
-  <!-- Modal: enter name after a run -->
   <div class="modal" id="modal">
     <div class="modal-card">
       <h3 id="modalTitle">Great run! Save your time to the leaderboard</h3>
@@ -187,20 +196,18 @@ document.getElementById("btn-share").addEventListener("click", async ()=>{
 });
 
 /* ========= Keys ========= */
-const LS_KEY_BEST = `mskMatchBestMs__${CLASS_CODE}`;          // Stopwatch “best”
-const LS_KEY_LB   = `mskMatchLeaderboardV1__${CLASS_CODE}`;    // Leaderboard
+const LS_KEY_BEST = `mskMatchBestMs__${CLASS_CODE}`;
+const LS_KEY_LB   = `mskMatchLeaderboardV1__${CLASS_CODE}`;
 
 /* ========= State ========= */
 const state = {
   tries: 0,
   lockedIds: new Set(),
   pairAB: new Map(), pairAC: new Map(),
+  revB: new Map(), revC: new Map(),
   nodeMap: { A:[], B:[], C:[] },
-  // timing
   timerRunning:false, tick:null,
-  mode:"stopwatch",       // "stopwatch" | "countdown"
-  raceLimitMs:120000,     // used when countdown
-  startMs:0, elapsedMs:0, // stopwatch elapsed or countdown remaining computed from these
+  mode:"stopwatch", raceLimitMs:120000, startMs:0, elapsedMs:0,
 };
 const $ = s => document.querySelector(s);
 const el = (t,p={},...kids)=>{ const n=Object.assign(document.createElement(t),p); kids.forEach(k=>n.append(k)); return n; };
@@ -210,23 +217,16 @@ const shuffle = a => { const b=a.slice(); for(let i=b.length-1;i>0;i--){const j=
 function toast(msg){ const t=$("#toast"); t.textContent=msg; t.className="toast show"; setTimeout(()=>t.className="toast",1400); }
 
 /* ========= Time helpers ========= */
-function formatMs(ms){
-  const positive = Math.max(0, ms);
-  const m = Math.floor(positive/60000);
-  const s = Math.floor((positive%60000)/1000);
-  const d = Math.floor((positive%1000)/100);
-  return `${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}.${d}`;
-}
+function formatMs(ms){ const p=Math.max(0,ms); const m=Math.floor(p/60000), s=Math.floor((p%60000)/1000), d=Math.floor((p%1000)/100); return `${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}.${d}`; }
 function updateTimeUI(){
   if(state.mode==="stopwatch"){
     $("#time").textContent = formatMs(state.elapsedMs);
     $("#best").textContent = localStorage.getItem(LS_KEY_BEST) ? formatMs(Number(localStorage.getItem(LS_KEY_BEST))) : "—";
   } else {
-    // countdown: show remaining
     const elapsed = performance.now() - state.startMs;
     const remaining = Math.max(0, state.raceLimitMs - elapsed);
     $("#time").textContent = formatMs(remaining);
-    $("#best").textContent = "—"; // best is for stopwatch only
+    $("#best").textContent = "—";
   }
 }
 function startTimer(){
@@ -240,15 +240,11 @@ function startTimer(){
     } else {
       const elapsed = performance.now() - state.startMs;
       if(elapsed >= state.raceLimitMs){
-        // time up!
         clearInterval(state.tick); state.tick=null; state.timerRunning=false;
         $("#time").textContent = "00:00.0";
         toast("⏰ Time up — DNF");
-        // disable saving to leaderboard by showing modal with disabled save
-        showSaveModal(true); // DNF
-      } else {
-        updateTimeUI();
-      }
+        showSaveModal(true);
+      } else { updateTimeUI(); }
     }
   }, 100);
 }
@@ -259,80 +255,45 @@ function stopTimerAndMaybeSetBest(){
     state.elapsedMs = performance.now() - state.startMs;
     updateTimeUI();
     const bestRaw = localStorage.getItem(LS_KEY_BEST);
-    if(!bestRaw || state.elapsedMs < Number(bestRaw)){
-      localStorage.setItem(LS_KEY_BEST, String(state.elapsedMs));
-      toast("🏁 New best time!");
-    }
-  } else {
-    // countdown finish early — keep elapsed for leaderboard display
-    state.elapsedMs = performance.now() - state.startMs;
-    updateTimeUI();
-  }
+    if(!bestRaw || state.elapsedMs < Number(bestRaw)){ localStorage.setItem(LS_KEY_BEST, String(state.elapsedMs)); toast("🏁 New best time!"); }
+  } else { state.elapsedMs = performance.now() - state.startMs; updateTimeUI(); }
 }
-function resetTimerUI(){
-  if(state.tick){ clearInterval(state.tick); state.tick=null; }
-  state.timerRunning=false; state.elapsedMs=0; state.startMs=0;
-  updateTimeUI();
-}
+function resetTimerUI(){ if(state.tick){ clearInterval(state.tick); state.tick=null; } state.timerRunning=false; state.elapsedMs=0; state.startMs=0; updateTimeUI(); }
 
 /* ========= Leaderboard ========= */
 function loadLB(){ try{ return JSON.parse(localStorage.getItem(LS_KEY_LB)||"[]"); }catch{ return []; } }
 function saveLB(rows){ localStorage.setItem(LS_KEY_LB, JSON.stringify(rows)); }
-function addToLB(name, ms, tries){
-  const rows = loadLB();
-  rows.push({ name: name || "Anon", ms, tries, date: new Date().toISOString() });
-  rows.sort((a,b)=>a.ms-b.ms);
-  saveLB(rows.slice(0, 20));
-  renderLB();
-}
+function addToLB(name, ms, tries){ const rows=loadLB(); rows.push({name:name||"Anon", ms, tries, date:new Date().toISOString()}); rows.sort((a,b)=>a.ms-b.ms); saveLB(rows.slice(0,20)); renderLB(); }
 function renderLB(){
-  const tbody = $("#lb-body");
-  const rows = loadLB().slice(0,10);
-  tbody.innerHTML = "";
-  if(rows.length===0){
-    const tr=el("tr",{}, el("td",{colSpan:5}, "No scores yet — be the first!"));
-    tbody.appendChild(tr); return;
-  }
-  rows.forEach((r,i)=>{
-    const tr = document.createElement("tr");
-    const dt = new Date(r.date);
-    tr.innerHTML = `
-      <td>${i+1}</td>
-      <td>${escapeHtml(r.name)}</td>
-      <td>${formatMs(r.ms)}</td>
-      <td>${r.tries}</td>
-      <td>${dt.toLocaleDateString()} ${dt.toLocaleTimeString()}</td>`;
+  const tbody=$("#lb-body"); const rows=loadLB().slice(0,10);
+  tbody.innerHTML=""; if(rows.length===0){ tbody.appendChild(el("tr",{}, el("td",{colSpan:5},"No scores yet — be the first!"))); return; }
+  rows.forEach((r,i)=>{ const tr=document.createElement("tr"); const dt=new Date(r.date);
+    tr.innerHTML=`<td>${i+1}</td><td>${escapeHtml(r.name)}</td><td>${formatMs(r.ms)}</td><td>${r.tries}</td><td>${dt.toLocaleDateString()} ${dt.toLocaleTimeString()}</td>`;
     tbody.appendChild(tr);
   });
 }
-function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 function exportLB(){
-  const rows = loadLB().sort((a,b)=>a.ms-b.ms);
-  const header = ["Rank","Name","Time (ms)","Time (mm:ss.d)","Tries","Date ISO"];
-  const lines = [header.join(",")];
+  const rows=loadLB().sort((a,b)=>a.ms-b.ms), header=["Rank","Name","Time (ms)","Time (mm:ss.d)","Tries","Date ISO"], lines=[header.join(",")];
   rows.forEach((r,i)=> lines.push([i+1, `"${r.name.replace(/"/g,'""')}"`, r.ms, formatMs(r.ms), r.tries, r.date].join(",")));
-  const csv = lines.join("\n");
-  const blob = new Blob([csv], {type:"text/csv;charset=utf-8"});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a"); a.href=url; a.download=`leaderboard_${CLASS_CODE}.csv`;
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+  const blob=new Blob([lines.join("\n")],{type:"text/csv;charset=utf-8"}), url=URL.createObjectURL(blob);
+  const a=document.createElement("a"); a.href=url; a.download=`leaderboard_${CLASS_CODE}.csv`; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 
 /* ========= Build Board ========= */
 function dedupeByLabel(arr){ const seen=new Set(), out=[]; for(const x of arr){ if(!seen.has(x.label)){ seen.add(x.label); out.push(x); } } return out; }
-
 function buildBoard(){
-  state.tries=0; state.lockedIds.clear(); state.pairAB.clear(); state.pairAC.clear();
+  state.tries=0; state.lockedIds.clear();
+  state.pairAB.clear(); state.pairAC.clear(); state.revB.clear(); state.revC.clear();
   $("#tries").textContent="0"; $("#score").textContent="0"; $("#total").textContent=String(DATA.length);
   ["A","B","C"].forEach(k=>$("#col-"+k).innerHTML="");
   state.nodeMap={A:[],B:[],C:[]};
   $("#wires").innerHTML=""; defineGradientsOnce();
   resetTimerUI();
 
-  const packA = shuffle(dedupeByLabel(DATA.map(d=>({col:"A", id:`A-${d.A}`, label:d.A}))));
-  const packB = shuffle(DATA.map(d=>({col:"B", id:d.id, label:d.B})));
-  const packC = shuffle(DATA.map(d=>({col:"C", id:d.id, label:d.C})));
+  const packA=shuffle(dedupeByLabel(DATA.map(d=>({col:"A", id:`A-${d.A}`, label:d.A}))));
+  const packB=shuffle(DATA.map(d=>({col:"B", id:d.id, label:d.B})));
+  const packC=shuffle(DATA.map(d=>({col:"C", id:d.id, label:d.C})));
 
   for(const card of packA){ const node=renderCard(card); $("#col-A").append(node); state.nodeMap.A.push({data:card,node}); }
   for(const card of packB){ const node=renderCard(card); $("#col-B").append(node); state.nodeMap.B.push({data:card,node}); }
@@ -343,10 +304,8 @@ function buildBoard(){
 function renderCard(card){
   const node = el("div",{className:"card","data-col":card.col,"data-id":card.id,draggable:card.col!=="A"},card.label);
   if(card.col==="A"){
-    node.addEventListener("dragover", e=>{
-      if(dragPayload && ["B","C"].includes(dragPayload.col) && !node.classList.contains("locked")) e.preventDefault();
-      node.classList.add("highlight");
-    });
+    const chips=document.createElement("div"); chips.className="chips"; node.appendChild(chips);
+    node.addEventListener("dragover", e=>{ if(dragPayload && ["B","C"].includes(dragPayload.col) && !node.classList.contains("locked")) e.preventDefault(); node.classList.add("highlight"); });
     node.addEventListener("dragleave", ()=> node.classList.remove("highlight"));
     node.addEventListener("drop", e=>onDropOnA(e,node));
   } else {
@@ -354,127 +313,109 @@ function renderCard(card){
       if(node.classList.contains("locked")){ e.preventDefault(); return; }
       dragPayload={col:card.col,id:card.id,node};
       node.classList.add("highlight");
-      startTimer(); // start timing on first drag
+      startTimer();
     });
-    node.addEventListener("dragend", ()=>{ dragPayload=null; node.classList.remove("highlight"); });
+    node.addEventListener("dragend", ()=>{
+      dragPayload=null;
+      node.classList.remove("highlight");
+      stopAutoScroll();   // <-- stop edge scrolling after drag ends
+    });
   }
   return node;
 }
 
 let dragPayload=null;
 
+/* ========= Visual helpers ========= */
+function updateAChips(aNode){
+  const chips=aNode.querySelector('.chips'); if(!chips) return;
+  const bId=state.pairAB.get(aNode), cId=state.pairAC.get(aNode);
+  const bText=bId ? (DATA.find(d=>d.id===bId)?.B || "Test") : null;
+  const cText=cId ? (DATA.find(d=>d.id===cId)?.C || "Meaning") : null;
+  chips.innerHTML=""; if(bText) chips.appendChild(el("span",{className:"chip"}, el("span",{},"Test: "), el("b",{},bText)));
+  if(cText) chips.appendChild(el("span",{className:"chip"}, el("span",{},"Meaning: "), el("b",{},cText)));
+}
+function markCardLinked(col,id,aLabel){ const node=findNodeById(col,id); if(!node) return; const old=node.querySelector('.tag'); if(old) old.remove(); node.classList.add('paired'); node.appendChild(el("div",{className:"tag"},`Linked to ${aLabel}`)); }
+function unmarkCardLinked(col,id){ const node=findNodeById(col,id); if(!node) return; const old=node.querySelector('.tag'); if(old) old.remove(); node.classList.remove('paired'); }
+function flash(node){ node.classList.add('flash'); setTimeout(()=>node.classList.remove('flash'),350); }
+
+/* ========= DnD drop handler ========= */
 function onDropOnA(e,aNode){
   e.preventDefault();
   aNode.classList.remove("highlight");
   if(!dragPayload) return;
-  const kind=dragPayload.col, draggedId=dragPayload.id;
-  if(kind==="B") state.pairAB.set(aNode,draggedId);
-  if(kind==="C") state.pairAC.set(aNode,draggedId);
 
+  const kind=dragPayload.col, draggedId=dragPayload.id;
+  const aLabel = aNode.firstChild.nodeType===3 ? aNode.firstChild.nodeValue.trim() : aNode.childNodes[0].textContent.trim();
+
+  if(kind==="B" && state.revB.has(draggedId)){
+    const oldA=state.revB.get(draggedId);
+    state.pairAB.delete(oldA); updateAChips(oldA); removeLine(`wire-ab-${draggedId}`); unmarkCardLinked("B",draggedId);
+  }
+  if(kind==="C" && state.revC.has(draggedId)){
+    const oldA=state.revC.get(draggedId);
+    state.pairAC.delete(oldA); updateAChips(oldA); removeLine(`wire-ac-${draggedId}`); unmarkCardLinked("C",draggedId);
+  }
+
+  if(kind==="B"){ state.pairAB.set(aNode,draggedId); state.revB.set(draggedId,aNode); markCardLinked("B",draggedId,aLabel); }
+  if(kind==="C"){ state.pairAC.set(aNode,draggedId); state.revC.set(draggedId,aNode); markCardLinked("C",draggedId,aLabel); }
+
+  flash(aNode);
+  updateAChips(aNode);
   drawProvisionalWiresForA(aNode);
 
-  if(state.pairAB.has(aNode) && state.pairAC.has(aNode)){
-    checkTripleForA(aNode);
-  }
+  if(state.pairAB.has(aNode) && state.pairAC.has(aNode)) checkTripleForA(aNode);
 }
 
-/* ========= Wire Drawing ========= */
+/* ========= Wires ========= */
 function defineGradientsOnce(){
   if(document.getElementById("gradAB")) return;
-  const svg=$("#wires");
-  const defs=document.createElementNS("http://www.w3.org/2000/svg","defs");
-
-  const gradAB=document.createElementNS("http://www.w3.org/2000/svg","linearGradient");
-  gradAB.id="gradAB"; gradAB.setAttribute("x1","0%"); gradAB.setAttribute("x2","100%");
+  const svg=$("#wires"); const defs=document.createElementNS("http://www.w3.org/2000/svg","defs");
+  const gradAB=document.createElementNS("http://www.w3.org/2000/svg","linearGradient"); gradAB.id="gradAB"; gradAB.setAttribute("x1","0%"); gradAB.setAttribute("x2","100%");
   gradAB.innerHTML='<stop offset="0%" stop-color="#7c5cff"/><stop offset="100%" stop-color="#00d1ff"/>';
-  const gradAC=document.createElementNS("http://www.w3.org/2000/svg","linearGradient");
-  gradAC.id="gradAC"; gradAC.setAttribute("x1","0%"); gradAC.setAttribute("x2","100%");
+  const gradAC=document.createElementNS("http://www.w3.org/2000/svg","linearGradient"); gradAC.id="gradAC"; gradAC.setAttribute("x1","0%"); gradAC.setAttribute("x2","100%");
   gradAC.innerHTML='<stop offset="0%" stop-color="#f8c77e"/><stop offset="100%" stop-color="#7c5cff"/>';
-
-  defs.appendChild(gradAB); defs.appendChild(gradAC);
-  svg.appendChild(defs);
+  defs.appendChild(gradAB); defs.appendChild(gradAC); svg.appendChild(defs);
 }
-
-function ensureLine(id, stroke){
-  let line=document.getElementById(id);
-  if(!line){
-    line=document.createElementNS("http://www.w3.org/2000/svg","path");
-    line.setAttribute("id",id);
-    line.setAttribute("fill","none");
-    line.setAttribute("stroke-width","3");
-    line.setAttribute("stroke-linecap","round");
-    line.setAttribute("opacity","0.95");
-    $("#wires").appendChild(line);
-  }
-  if(stroke) line.setAttribute("stroke",stroke);
-  return line;
-}
+function ensureLine(id,stroke){ let line=document.getElementById(id); if(!line){ line=document.createElementNS("http://www.w3.org/2000/svg","path"); line.setAttribute("id",id); line.setAttribute("fill","none"); line.setAttribute("stroke-width","3"); line.setAttribute("stroke-linecap","round"); line.setAttribute("opacity","0.95"); $("#wires").appendChild(line); } if(stroke) line.setAttribute("stroke",stroke); return line; }
 function removeLine(id){ const n=document.getElementById(id); if(n) n.remove(); }
-
 function boardOffset(){ const b=$("#board").getBoundingClientRect(); return {left:b.left+window.scrollX, top:b.top+window.scrollY}; }
-function mid(node){ const r=node.getBoundingClientRect(); return { x:r.left+r.width/2, y:r.top+r.height/2 }; }
-function curve(p1,p2){
-  const dx=(p2.x-p1.x)*0.35, c1={x:p1.x+dx,y:p1.y}, c2={x:p2.x-dx,y:p2.y}, off=boardOffset();
+function mid(node){ const r=node.getBoundingClientRect(); return {x:r.left+r.width/2, y:r.top+r.height/2}; }
+function curve(p1,p2){ const dx=(p2.x-p1.x)*0.35, c1={x:p1.x+dx,y:p1.y}, c2={x:p2.x-dx,y:p2.y}, off=boardOffset();
   const P1={x:p1.x-off.left,y:p1.y-off.top}, C1={x:c1.x-off.left,y:c1.y-off.top}, C2={x:c2.x-off.left,y:c2.y-off.top}, P2={x:p2.x-off.left,y:p2.y-off.top};
   return `M ${P1.x},${P1.y} C ${C1.x},${C1.y} ${C2.x},${C2.y} ${P2.x},${P2.y}`;
 }
-
 function findNodeById(col,id){ return state.nodeMap[col].find(x=>x.data.id===id)?.node||null; }
-
 function drawProvisionalWiresForA(aNode){
   const chosenB=state.pairAB.get(aNode), chosenC=state.pairAC.get(aNode);
   const aPos=mid(aNode);
-  if(chosenB){
-    const bNode=findNodeById("B",chosenB); if(bNode){
-      const bPos=mid(bNode);
-      const id=`wire-ab-${chosenB}`;
-      const path=curve(bPos,aPos);
-      const line=ensureLine(id,"url(#gradAB)");
-      line.setAttribute("d",path);
-    }
-  }
-  if(chosenC){
-    const cNode=findNodeById("C",chosenC); if(cNode){
-      const cPos=mid(cNode);
-      const id=`wire-ac-${chosenC}`;
-      const path=curve(aPos,cPos);
-      const line=ensureLine(id,"url(#gradAC)");
-      line.setAttribute("d",path);
-    }
-  }
+  if(chosenB){ const bNode=findNodeById("B",chosenB); if(bNode){ const bPos=mid(bNode); const id=`wire-ab-${chosenB}`; const path=curve(bPos,aPos); const line=ensureLine(id,"url(#gradAB)"); line.setAttribute("d",path); } }
+  if(chosenC){ const cNode=findNodeById("C",chosenC); if(cNode){ const cPos=mid(cNode); const id=`wire-ac-${chosenC}`; const path=curve(aPos,cPos); const line=ensureLine(id,"url(#gradAC)"); line.setAttribute("d",path); } }
 }
 
 /* ========= Checking & Locking ========= */
 function checkTripleForA(aNode){
   state.tries++; $("#tries").textContent=String(state.tries);
-
-  const chosenB=state.pairAB.get(aNode);
-  const chosenC=state.pairAC.get(aNode);
-
-  const sameTriple = chosenB && chosenC && (chosenB===chosenC);
-  const triple = DATA.find(d=>d.id===chosenB);
-  const aLabel = aNode.textContent.trim();
-  const labelMatches = triple && triple.A===aLabel;
+  const chosenB=state.pairAB.get(aNode), chosenC=state.pairAC.get(aNode);
+  const sameTriple=chosenB && chosenC && (chosenB===chosenC);
+  const triple=DATA.find(d=>d.id===chosenB);
+  const aLabel=aNode.firstChild.nodeType===3 ? aNode.firstChild.nodeValue.trim() : aNode.childNodes[0].textContent.trim();
+  const labelMatches=triple && triple.A===aLabel;
   const isCorrect = sameTriple && labelMatches;
-
   const abId=`wire-ab-${chosenB}`, acId=`wire-ac-${chosenC}`;
-
   if(isCorrect){
     ensureLine(abId,"#2ecc71"); ensureLine(acId,"#2ecc71");
     lockTriple(chosenB);
     toast("Nice! Correct match 🎉");
     state.pairAB.delete(aNode); state.pairAC.delete(aNode);
+    updateAChips(aNode);
   } else {
     ensureLine(abId,"#ff6b6b"); ensureLine(acId,"#ff6b6b");
     toast("Not quite — adjust the links.");
-    setTimeout(()=>{
-      if(!state.lockedIds.has(chosenB)) removeLine(abId);
-      if(!state.lockedIds.has(chosenC)) removeLine(acId);
-    }, 900);
+    setTimeout(()=>{ if(!state.lockedIds.has(chosenB)) removeLine(abId); if(!state.lockedIds.has(chosenC)) removeLine(acId); },900);
   }
   refreshWiresDeferred();
 }
-
 function lockTriple(tripleId){
   if(state.lockedIds.has(tripleId)) return;
   state.lockedIds.add(tripleId);
@@ -482,28 +423,23 @@ function lockTriple(tripleId){
   const bNode=findNodeById("B",tripleId), cNode=findNodeById("C",tripleId);
   if(bNode) bNode.classList.add("locked","correct");
   if(cNode) cNode.classList.add("locked","correct");
-
+  if(bNode){ const tag=bNode.querySelector('.tag'); if(tag) tag.textContent="✅ Correct"; }
+  if(cNode){ const tag=cNode.querySelector('.tag'); if(tag) tag.textContent="✅ Correct"; }
   const aNode = state.nodeMap.A.find(a=>a.data.label===DATA.find(d=>d.id===tripleId).A)?.node;
   if(aNode){ drawFinalWiresForTriple(aNode,tripleId); }
-
   if(state.lockedIds.size===DATA.length){
     stopTimerAndMaybeSetBest();
-    // only allow saving if not DNF
     if(!(state.mode==="countdown" && (performance.now()-state.startMs)>=state.raceLimitMs)){
       showSaveModal(false);
       toast("All matched — you win! 🏆");
     }
   }
 }
-
 function drawFinalWiresForTriple(aNode,tripleId){
-  const bNode=findNodeById("B",tripleId), cNode=findNodeById("C",tripleId);
-  if(!bNode || !cNode) return;
+  const bNode=findNodeById("B",tripleId), cNode=findNodeById("C",tripleId); if(!bNode||!cNode) return;
   const aPos=mid(aNode), bPos=mid(bNode), cPos=mid(cNode);
-  const ab=ensureLine(`wire-ab-${tripleId}`,"#2ecc71");
-  const ac=ensureLine(`wire-ac-${tripleId}`,"#2ecc71");
-  ab.setAttribute("d",curve(bPos,aPos));
-  ac.setAttribute("d",curve(aPos,cPos));
+  const ab=ensureLine(`wire-ab-${tripleId}`,"#2ecc71"); const ac=ensureLine(`wire-ac-${tripleId}`,"#2ecc71");
+  ab.setAttribute("d",curve(bPos,aPos)); ac.setAttribute("d",curve(aPos,cPos));
 }
 
 /* ========= Wire maintenance ========= */
@@ -523,60 +459,55 @@ window.addEventListener("resize", refreshWiresDeferred);
 document.addEventListener("scroll", refreshWiresDeferred, true);
 
 /* ========= Timer UI & modal ========= */
-function resetTimerUI(){
-  if(state.tick){ clearInterval(state.tick); state.tick=null; }
-  state.timerRunning=false; state.elapsedMs=0; state.startMs=0;
-  updateTimeUI();
-}
 function showSaveModal(isDNF){
-  const tries = String(state.tries);
-  $("#modalTries").textContent = tries;
+  $("#modalTries").textContent=String(state.tries);
   const timeText = state.mode==="stopwatch" ? formatMs(state.elapsedMs)
                  : (isDNF ? "DNF" : `${formatMs(state.elapsedMs)} (finished with ${formatMs(state.raceLimitMs - state.elapsedMs)} left)`);
-  $("#modalTime").textContent = timeText;
-  $("#modalTitle").textContent = isDNF ? "Time up! (DNF) — run again?" : "Great run! Save your time to the leaderboard";
-  $("#btn-save").disabled = !!isDNF;
-  $("#modal").classList.add("open");
-  if(!isDNF) $("#name").focus();
+  $("#modalTime").textContent=timeText;
+  $("#modalTitle").textContent=isDNF ? "Time up! (DNF) — run again?" : "Great run! Save your time to the leaderboard";
+  $("#btn-save").disabled=!!isDNF;
+  $("#modal").classList.add("open"); if(!isDNF) $("#name").focus();
 }
 function closeModal(){ $("#modal").classList.remove("open"); }
 document.getElementById("btn-cancel").addEventListener("click", closeModal);
-document.getElementById("btn-save").addEventListener("click", ()=>{
-  const name = (document.getElementById("name").value || "").trim().slice(0,20);
-  addToLB(name || "Anon", state.elapsedMs, state.tries);
-  document.getElementById("name").value = "";
-  closeModal();
-});
-
-/* ========= Leaderboard controls ========= */
-document.getElementById("btn-reset-lb").addEventListener("click", ()=>{
-  if(confirm(`Reset leaderboard for class "${CLASS_CODE}"?`)){
-    localStorage.removeItem(LS_KEY_LB);
-    renderLB();
-  }
-});
-document.getElementById("btn-export").addEventListener("click", exportLB);
+document.getElementById("btn-save").addEventListener("click", ()=>{ const name=(document.getElementById("name").value||"").trim().slice(0,20); addToLB(name||"Anon", state.elapsedMs, state.tries); document.getElementById("name").value=""; closeModal(); });
 
 /* ========= Mode controls ========= */
-const toggleCountdown = document.getElementById("toggle-countdown");
-const selDuration = document.getElementById("race-duration");
-toggleCountdown.addEventListener("change", ()=>{
-  state.mode = toggleCountdown.checked ? "countdown" : "stopwatch";
-  resetTimerUI();
-  toast(state.mode==="countdown" ? "Countdown mode on ⏳" : "Stopwatch mode on ⏱️");
-});
-selDuration.addEventListener("change", ()=>{
-  state.raceLimitMs = Number(selDuration.value || 120000);
-  if(state.mode==="countdown") { resetTimerUI(); toast(`Countdown set to ${formatMs(state.raceLimitMs)}`); }
-});
+const toggleCountdown=document.getElementById("toggle-countdown");
+const selDuration=document.getElementById("race-duration");
+toggleCountdown.addEventListener("change", ()=>{ state.mode=toggleCountdown.checked?"countdown":"stopwatch"; resetTimerUI(); toast(state.mode==="countdown"?"Countdown mode on ⏳":"Stopwatch mode on ⏱️"); });
+selDuration.addEventListener("change", ()=>{ state.raceLimitMs=Number(selDuration.value||120000); if(state.mode==="countdown"){ resetTimerUI(); toast(`Countdown set to ${formatMs(state.raceLimitMs)}`); }});
+
+/* ========= Leaderboard controls ========= */
+document.getElementById("btn-reset-lb").addEventListener("click", ()=>{ if(confirm(`Reset leaderboard for class "${CLASS_CODE}"?`)){ localStorage.removeItem(LS_KEY_LB); renderLB(); }});
+document.getElementById("btn-export").addEventListener("click", exportLB);
 
 /* ========= Controls ========= */
 $("#btn-shuffle").addEventListener("click",()=>{ buildBoard(); toast("New shuffle ready 🔀"); });
 $("#btn-reset").addEventListener("click",()=>{ buildBoard(); toast("Board reset ♻️"); });
 
+/* ========= Auto-scroll while dragging (NEW) ========= */
+const SCROLL_EDGE = 80;   // px from viewport edge
+const SCROLL_SPEED = 18;  // px per frame
+let _dragScrolling = { dir: 0, raf: null };
+function _scrollTick(){ if(_dragScrolling.dir!==0){ window.scrollBy(0, _dragScrolling.dir*SCROLL_SPEED); _dragScrolling.raf=requestAnimationFrame(_scrollTick); } else if(_dragScrolling.raf){ cancelAnimationFrame(_dragScrolling.raf); _dragScrolling.raf=null; } }
+function handleDragOverAutoScroll(e){
+  e.preventDefault();
+  const y=e.clientY, h=window.innerHeight;
+  const newDir = (y < SCROLL_EDGE) ? -1 : (y > h - SCROLL_EDGE ? 1 : 0);
+  if(newDir!==_dragScrolling.dir){
+    _dragScrolling.dir=newDir;
+    if(_dragScrolling.dir!==0 && !_dragScrolling.raf){ _dragScrolling.raf=requestAnimationFrame(_scrollTick); }
+    else if(_dragScrolling.dir===0){ _scrollTick(); }
+  }
+}
+function stopAutoScroll(){ _dragScrolling.dir=0; if(_dragScrolling.raf){ cancelAnimationFrame(_dragScrolling.raf); _dragScrolling.raf=null; } }
+document.addEventListener('dragover', handleDragOverAutoScroll, { passive:false });
+document.addEventListener('dragleave', stopAutoScroll);
+document.addEventListener('drop', stopAutoScroll);
+
 /* ========= Init ========= */
 function showBest(){ const raw=localStorage.getItem(LS_KEY_BEST); $("#best").textContent = raw ? formatMs(Number(raw)) : "—"; }
-function renderLB(){ const tbody=$("#lb-body"); const rows=(loadLB().slice(0,10)); tbody.innerHTML=""; if(rows.length===0){const tr=el("tr",{},el("td",{colSpan:5},"No scores yet — be the first!")); tbody.appendChild(tr); return;} rows.sort((a,b)=>a.ms-b.ms).forEach((r,i)=>{const tr=document.createElement("tr"); const dt=new Date(r.date); tr.innerHTML=`<td>${i+1}</td><td>${escapeHtml(r.name)}</td><td>${formatMs(r.ms)}</td><td>${r.tries}</td><td>${dt.toLocaleDateString()} ${dt.toLocaleTimeString()}</td>`; tbody.appendChild(tr);}); }
 renderLB(); showBest(); buildBoard();
 </script>
 </body>
