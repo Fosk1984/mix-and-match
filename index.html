@@ -90,12 +90,7 @@
 
   .wires{ position:absolute; inset:0; pointer-events:none; filter: drop-shadow(0 0 8px rgba(140,128,255,.15)); }
 
-  /* stronger selected cue */
-  .selected{
-    outline:3px solid var(--acc1);
-    box-shadow:0 0 0 8px rgba(124,92,255,.22);
-    transform: translateY(-1px);
-  }
+  .selected{ outline:2px solid var(--acc1); box-shadow:0 0 0 6px rgba(124,92,255,.18) }
   .hint{ font-size:12px; color:#c9cff7; margin-top:4px }
 
   footer{ color:var(--muted); font-size:13px; text-align:center }
@@ -331,10 +326,9 @@ function buildBoard(){
   $("#wires").innerHTML=""; defineGradientsOnce();
   resetTimerUI();
 
-  /* Balanced A: one slot per test (matches B/C) */
-  const packA = shuffle(DATA.map(d => ({ col:"A", id:d.id, label:d.A })));
-  const packB = shuffle(DATA.map(d => ({ col:"B", id:d.id, label:d.B })));
-  const packC = shuffle(DATA.map(d => ({ col:"C", id:d.id, label:d.C })));
+  const packA=shuffle(dedupeByLabel(DATA.map(d=>({col:"A", id:`A-${d.A}`, label:d.A}))));
+  const packB=shuffle(DATA.map(d=>({col:"B", id:d.id, label:d.B})));
+  const packC=shuffle(DATA.map(d=>({col:"C", id:d.id, label:d.C})));
 
   for(const card of packA){ const node=renderCard(card); $("#col-A").append(node); state.nodeMap.A.push({data:card,node}); }
   for(const card of packB){ const node=renderCard(card); $("#col-B").append(node); state.nodeMap.B.push({data:card,node}); }
@@ -482,7 +476,7 @@ function boardOffset(){ const b=$("#board").getBoundingClientRect(); return {lef
 function mid(node){ const r=node.getBoundingClientRect(); return {x:r.left+r.width/2, y:r.top+r.height/2}; }
 function curve(p1,p2){
   const dx=(p2.x-p1.x)*0.35, c1={x:p1.x+dx,y:p1.y}, c2={x:p2.x-dx,y:p2.y}, off=boardOffset();
-  const P1={x:p1.x-off.left,y:p1.y-off.top}, C1={x:c1.x-off.left,y:c1.y-off.top}, C2={x:c2.x-off.left,y:c2.y-off-top}, P2={x:p2.x-off.left,y:p2.y-off.top};
+  const P1={x:p1.x-off.left,y:p1.y-off.top}, C1={x:c1.x-off.left,y:c1.y-off.top}, C2={x:c2.x-off.left,y:c2.y-off.top}, P2={x:p2.x-off.left,y:p2.y-off.top};
   return `M ${P1.x},${P1.y} C ${C1.x},${C1.y} ${C2.x},${C2.y} ${P2.x},${P2.y}`;
 }
 function findNodeById(col,id){ return state.nodeMap[col].find(x=>x.data.id===id)?.node||null; }
@@ -666,6 +660,7 @@ $("#btn-reset").addEventListener("click",()=>{ buildBoard(); toast("Board reset 
 
 /* --- Init --- */
 function showBest(){ const raw=localStorage.getItem(LS_KEY_BEST); $("#best").textContent = raw ? formatMs(Number(raw)) : "—"; }
+function defineGradientsOnce(){ if(document.getElementById("gradAB")) return; const svg=$("#wires"); const defs=document.createElementNS("http://www.w3.org/2000/svg","defs"); const gradAB=document.createElementNS("http://www.w3.org/2000/svg","linearGradient"); gradAB.id="gradAB"; gradAB.setAttribute("x1","0%"); gradAB.setAttribute("x2","100%"); gradAB.innerHTML='<stop offset="0%" stop-color="#7c5cff"/><stop offset="100%" stop-color="#00d1ff"/>'; const gradAC=document.createElementNS("http://www.w3.org/2000/svg","linearGradient"); gradAC.id="gradAC"; gradAC.setAttribute("x1","0%"); gradAC.setAttribute("x2","100%"); gradAC.innerHTML='<stop offset="0%" stop-color="#f8c77e"/><stop offset="100%" stop-color="#7c5cff"/>'; defs.appendChild(gradAB); defs.appendChild(gradAC); svg.appendChild(defs); }
 showBest(); buildBoard();
 </script>
 </body>
