@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>MSK Special Tests — Drag & Match</title>
+<title>Drag & Match — Imaging & MSK</title>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -28,11 +28,11 @@
   }
 
   header{
-    position:sticky; top:0; z-index:5;
+    position:sticky; top:0; z-index:10;
     background:linear-gradient(180deg, rgba(12,15,30,1), rgba(12,15,30,.85), rgba(12,15,30,0));
     backdrop-filter:saturate(1.1) blur(4px);
     padding-bottom:6px;
-    display:flex; gap:14px; align-items:flex-start; justify-content:space-between;
+    display:flex; gap:14px; align-items:flex-start; justify-content:space-between; flex-wrap:wrap;
   }
   .title h1{
     margin:0; font-size: clamp(22px, 3.5vw, 34px); letter-spacing:.2px;
@@ -44,22 +44,37 @@
   .controls{
     display:flex; gap:8px; flex-wrap:wrap; align-items:center; justify-content:flex-end;
   }
-  button{
+  select, button, .toggle{
     appearance:none; border:1px solid var(--border); background:var(--card);
     color:var(--ink); padding:12px 14px; border-radius:12px; font-weight:700;
-    cursor:pointer; box-shadow:var(--shadow); transition:transform .06s ease, border-color .2s ease;
-    touch-action:manipulation;
+    box-shadow:var(--shadow);
   }
+  select{
+    padding-right:40px; position:relative; background-image:
+      linear-gradient(90deg, rgba(255,255,255,.05), rgba(255,255,255,0));
+  }
+  button{ cursor:pointer; transition:transform .06s ease, border-color .2s ease; touch-action:manipulation; }
   button:hover{ transform:translateY(-1px); border-color:#3b4591; }
   button:active{ transform:translateY(0); }
+
+  .toggle{ display:inline-flex; align-items:center; gap:10px; cursor:pointer; }
+  .toggle input{ display:none; }
+  .toggle span.knob{
+    width:38px; height:22px; border-radius:999px; background:#2a3160; position:relative;
+  }
+  .toggle span.knob::after{
+    content:""; position:absolute; left:3px; top:3px; width:16px; height:16px; border-radius:50%;
+    background:#cfd7ff; transition:left .2s ease;
+  }
+  .toggle input:checked + span.knob::after{ left:19px; }
+  .toggle b{ font-size:13px; color:#cfd7ff; }
+
   .timer{
     display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius:12px;
     border:1px solid var(--border); background:rgba(23,28,58,.6); font-weight:800;
   }
 
-  .grid{
-    display:grid; grid-template-columns: 1fr 1fr; gap:16px; align-items:start;
-  }
+  .grid{ display:grid; grid-template-columns: 1fr 1fr; gap:16px; align-items:start; }
 
   .column{
     background:linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0));
@@ -69,9 +84,7 @@
     display:flex; flex-direction:column; gap:12px;
     justify-content:flex-start; align-content:flex-start;
   }
-  .column h2{
-    margin:4px 4px 6px; font-size:16px; color:var(--muted); font-weight:700; letter-spacing:.3px;
-  }
+  .column h2{ margin:4px 4px 6px; font-size:16px; color:var(--muted); font-weight:700; letter-spacing:.3px; }
 
   .bank, .targets{
     display:flex; flex-direction:column; gap:10px;
@@ -83,19 +96,18 @@
     border-radius:14px; padding:14px 14px; line-height:1.25;
     font-weight:800; user-select:none;
     box-shadow:var(--shadow);
-    touch-action:none;           /* enables smooth pointer-drag on mobile */
+    touch-action:none;
   }
   .card[draggable="true"]{ cursor:grab; }
   .card.dragging{ opacity:.6; outline:2px dashed #4e59be; }
+  .card.distractor{ opacity:.85; }
 
   .target{
     border:1px dashed #39407a; border-radius:14px; padding:10px; position:relative;
     min-height:64px; display:flex; align-items:center; justify-content:space-between; gap:10px;
     background:rgba(10,13,26,.6);
   }
-  .target .label{
-    font-weight:800; font-size:15px; color:#cad3f8;
-  }
+  .target .label{ font-weight:800; font-size:15px; color:#cad3f8; }
   .slot{
     flex:0 0 auto; min-width:210px; min-height:44px; border:1px solid #39407a; border-radius:12px;
     display:flex; align-items:center; justify-content:center; padding:6px 8px; color:var(--muted);
@@ -115,6 +127,14 @@
     color:var(--muted); font-size:13px; padding-top:8px;
   }
   .score{ font-weight:800; color:#cfe6ff }
+
+  .stats{
+    display:flex; gap:10px; flex-wrap:wrap; align-items:center;
+    border:1px solid var(--border); background:rgba(23,28,58,.35);
+    padding:8px 10px; border-radius:12px; font-size:12px; color:#cfd7ff;
+  }
+  .stats .pill{ padding:6px 10px; border:1px solid var(--border); border-radius:999px; font-weight:800; }
+
   .toast{
     position:fixed; inset:auto 16px 16px auto; z-index:50; padding:10px 14px; border-radius:12px;
     border:1px solid var(--border); background:var(--card); color:var(--ink); box-shadow:var(--shadow);
@@ -122,20 +142,15 @@
   }
   .toast.show{ display:block; }
 
-  /* Confetti bits */
   .confetti{
     position:fixed; left:0; top:0; width:100%; height:0; overflow:visible; z-index:60; pointer-events:none;
   }
   .confetti i{
     position:absolute; top:-10px; width:8px; height:14px; border-radius:2px;
-    background: white; opacity:.9;
-    animation: fall 1400ms linear forwards;
+    background: white; opacity:.9; animation: fall 1400ms linear forwards;
   }
-  @keyframes fall{
-    to{ transform: translateY(110vh) rotate(720deg); opacity:1; }
-  }
+  @keyframes fall{ to{ transform: translateY(110vh) rotate(720deg); opacity:1; } }
 
-  /* Mobile polish */
   @media (max-width: 900px){
     .grid{ grid-template-columns: 1fr; }
     .slot{ min-width:unset; width:100%; min-height:48px; }
@@ -149,43 +164,58 @@
     transform:translate(-9999px,-9999px) scale(1.02);
     filter:drop-shadow(0 10px 22px rgba(0,0,0,.45));
   }
+
+  /* Fancy emoji option look (still native <select>) */
+  option{ font-weight:700; }
 </style>
 </head>
 <body>
   <div class="wrap">
     <header>
       <div class="title">
-        <h1>MSK Special Tests — Drag &amp; Match</h1>
-        <p>Drag a test from the left into the matching condition on the right. No hints. No sharing. Just skills.</p>
+        <h1>Drag &amp; Match — Imaging &amp; MSK</h1>
+        <p>Pick a topic (with icons), toggle hard mode if you dare, and match the left to the right. Mobile-friendly, with timer & stats.</p>
       </div>
       <div class="controls">
-        <button id="shuffleBtn" title="Shuffle bank items">Shuffle</button>
-        <button id="resetBtn" title="Reset everything">Reset</button>
-        <button id="checkBtn" title="Check your matches">Check answers</button>
+        <select id="topicSelect" title="Choose topic"></select>
+
+        <label class="toggle" title="Hard mode: adds distractors + 60s timer">
+          <input type="checkbox" id="hardMode">
+          <span class="knob"></span><b>Hard mode</b>
+        </label>
+
+        <button id="shuffleBtn">Shuffle</button>
+        <button id="resetBtn">Reset</button>
+        <button id="checkBtn">Check</button>
+
         <span class="timer">
-          <button id="timerBtn" aria-pressed="false" title="Start/stop 2-minute timer">Start 2:00</button>
+          <button id="timerBtn" aria-pressed="false" title="Start/stop timer">Start</button>
           <span id="timerReadout">—:—</span>
         </span>
       </div>
     </header>
 
     <div class="grid" id="board" aria-live="polite">
-      <!-- Bank -->
       <section class="column">
-        <h2>Test Bank</h2>
-        <div class="bank" id="bank" aria-label="Draggable tests"></div>
+        <h2>Bank</h2>
+        <div class="bank" id="bank" aria-label="Draggable items"></div>
       </section>
 
-      <!-- Targets -->
       <section class="column">
-        <h2>Match to the Condition</h2>
+        <h2>Targets</h2>
         <div class="targets" id="targets" aria-label="Drop targets"></div>
       </section>
     </div>
 
     <div class="footer">
       <div class="badge">No hints • No class sharing</div>
-      <div class="score" id="score">0 / 10 correct</div>
+      <div class="score" id="score">0 / 0 correct</div>
+      <div class="stats" id="statsBar">
+        <span class="pill" id="sRounds">Rounds: 0</span>
+        <span class="pill" id="sPerfects">Perfects: 0</span>
+        <span class="pill" id="sBest">Best time: —</span>
+        <span class="pill" id="sAcc">Avg. accuracy: —</span>
+      </div>
     </div>
   </div>
 
@@ -194,44 +224,244 @@
 
 <script>
 (() => {
-  // --- Dataset ---
-  const PAIRS = [
-    { id: "hawkins",   left: "Hawkins–Kennedy",              right: "Subacromial impingement" },
-    { id: "emptycan",  left: "Empty Can (Jobe) Test",        right: "Supraspinatus tear/tendinopathy" },
-    { id: "appreloc",  left: "Apprehension + Relocation",    right: "Anterior shoulder instability" },
-    { id: "speeds",    left: "Speed’s Test",                 right: "Long-head biceps tendinopathy" },
-    { id: "finkel",    left: "Finkelstein Test",             right: "De Quervain’s tenosynovitis" },
-    { id: "phalen",    left: "Phalen’s Test",                right: "Carpal tunnel syndrome" },
-    { id: "lachman",   left: "Lachman Test",                 right: "ACL rupture" },
-    { id: "mcmurray",  left: "McMurray Test",                right: "Meniscal tear" },
-    { id: "thompson",  left: "Thompson Test",                right: "Achilles tendon rupture" },
-    { id: "talar",     left: "Talar Tilt",                   right: "Lateral ankle instability (ATFL/CFL)" },
+  // ======================================
+  // ICONS for topics (emoji for simplicity)
+  // ======================================
+  const TOPIC_ICONS = {
+    "MSK — Special Tests": "🩺",
+    "Ultrasound Physics — Concept → Definition": "🧪",
+    "Artefacts — Name → Appearance": "🧩",
+    "MSK Anatomy (Upper Limb) — Muscle → Origin & Insertion": "💪",
+    "MSK Anatomy (Lower Limb) — Muscle → Origin & Insertion": "🦵",
+    "MSK Anatomy (Trunk/Core) — Muscle → Origin & Insertion": "🧍‍♂️",
+    "MSK Anatomy — Mixed (All Regions)": "🔀",
+  };
+
+  // =========================
+  // Topics/Datasets (Expanded)
+  // =========================
+  const TOPICS = {
+    "MSK — Special Tests": [
+      { id: "hawkins",   left: "Hawkins–Kennedy",              right: "Subacromial impingement" },
+      { id: "emptycan",  left: "Empty Can (Jobe) Test",        right: "Supraspinatus tear/tendinopathy" },
+      { id: "appreloc",  left: "Apprehension + Relocation",    right: "Anterior shoulder instability" },
+      { id: "speeds",    left: "Speed’s Test",                 right: "Long-head biceps tendinopathy" },
+      { id: "finkel",    left: "Finkelstein Test",             right: "De Quervain’s tenosynovitis" },
+      { id: "phalen",    left: "Phalen’s Test",                right: "Carpal tunnel syndrome" },
+      { id: "lachman",   left: "Lachman Test",                 right: "ACL rupture" },
+      { id: "mcmurray",  left: "McMurray Test",                right: "Meniscal tear" },
+      { id: "thompson",  left: "Thompson Test",                right: "Achilles tendon rupture" },
+      { id: "talar",     left: "Talar Tilt",                   right: "Lateral ankle instability (ATFL/CFL)" },
+      { id: "liftOff",   left: "Lift-off (Gerber) Test",       right: "Subscapularis tear" },
+      { id: "yergason",  left: "Yergason’s Test",              right: "LH biceps tendon instability" },
+      { id: "watson",    left: "Watson (Scaphoid Shift)",      right: "Scapholunate instability" },
+      { id: "valgusK",   left: "Valgus Stress (knee)",         right: "MCL injury" },
+      { id: "varusK",    left: "Varus Stress (knee)",          right: "LCL injury" },
+      { id: "squeezeAnk",left: "Squeeze Test (ankle)",         right: "Syndesmotic injury (high ankle sprain)" },
+      { id: "fabersij",  left: "FABER/Patrick",                right: "SI joint dysfunction/irritation" },
+      { id: "ober",      left: "Ober Test",                    right: "Iliotibial band tightness" },
+      { id: "cozens",    left: "Cozen’s Test",                 right: "Lateral epicondylalgia" },
+      { id: "tinelCub",  left: "Tinel at Cubital Tunnel",      right: "Ulnar neuropathy at elbow" },
+    ],
+
+    "Ultrasound Physics — Concept → Definition": [
+      { id: "atten",   left: "Attenuation",       right: "Loss of sound intensity with depth" },
+      { id: "imp",     left: "Acoustic impedance",right: "Resistance of a medium to sound propagation (ρ·c)" },
+      { id: "ref",     left: "Reflection",        right: "Echo produced at interfaces due to impedance mismatch" },
+      { id: "refrac",  left: "Refraction",        right: "Change in beam direction at oblique boundary (Snell's law)" },
+      { id: "scatter", left: "Scattering",        right: "Redirection by small structures → speckle" },
+      { id: "doppler", left: "Doppler shift",     right: "Frequency change due to relative motion" },
+      { id: "prf",     left: "Pulse repetition freq.", right: "Number of pulses per second (Hz)" },
+      { id: "nl",      left: "Non-linear propagation", right: "Causes harmonic generation at higher intensities" },
+      { id: "mi",      left: "Mechanical Index",  right: "Estimate of cavitation risk" },
+      { id: "ti",      left: "Thermal Index",     right: "Estimate of heating risk" },
+      { id: "axres",   left: "Axial resolution",  right: "Min. separation along beam (improves with shorter SPL)" },
+      { id: "latres",  left: "Lateral resolution",right: "Min. separation perpendicular to beam (beam width limited)" },
+      { id: "bw",      left: "Bandwidth",         right: "Range of frequencies in a pulse" },
+      { id: "qfac",    left: "Q-factor",          right: "Center freq ÷ bandwidth (↓Q → better axial resolution)" },
+      { id: "nyq",     left: "Nyquist limit",     right: "Half the PRF (max unaliased Doppler freq)" },
+      { id: "wfilt",   left: "Wall filter",       right: "High-pass filter removing low-freq tissue motion in Doppler" },
+      { id: "angle",   left: "Angle correction",  right: "Align sample <≈60° to flow for accurate velocity" },
+      { id: "gate",    left: "Sample volume (gate)", right: "Region sampled in PW Doppler" },
+      { id: "compound",left: "Spatial compounding",right: "Averaging from multiple angles to reduce speckle/artifacts" },
+      { id: "drange",  left: "Dynamic range (compression)", right: "Map wide echo amplitudes to displayable range" },
+    ],
+
+    "Artefacts — Name → Appearance": [
+      { id: "rev",     left: "Reverberation",       right: "Multiple, equally spaced echoes diminishing with depth" },
+      { id: "ring",    left: "Ring-down",           right: "Continuous bright echo distal to gas" },
+      { id: "shadow",  left: "Acoustic shadowing",  right: "Signal void distal to high attenuator" },
+      { id: "enh",     left: "Through enhancement", right: "Increased echogenicity distal to low attenuator (cyst)" },
+      { id: "edge",    left: "Edge shadowing",      right: "Thin shadow distal to curved interface" },
+      { id: "mirror",  left: "Mirror image",        right: "Duplicated structure across a strong reflector" },
+      { id: "side",    left: "Side lobe",           right: "Off-axis echo placed on main beam" },
+      { id: "alias",   left: "Doppler aliasing",    right: "Wrap-around velocities when exceeding Nyquist" },
+      { id: "anis",    left: "Anisotropy",          right: "Apparent hypoechoic tendon when beam not perpendicular" },
+      { id: "speckle", left: "Speckle",             right: "Granular interference pattern from scatter" },
+      { id: "beamw",   left: "Beam-width artifact", right: "Smearing/blur of small structures across beam width" },
+      { id: "speed",   left: "Speed error",         right: "Wrong depth placement due to non-1540 m/s tissues" },
+      { id: "range",   left: "Range ambiguity",     right: "Echo from previous pulse appears too shallow" },
+      { id: "ghost",   left: "Doppler clutter/ghosting", right: "Low-freq motion (wall/respiration) contaminates flow" },
+      { id: "xtalk",   left: "Spectral crosstalk",  right: "Mirror spectrum across baseline from overgain/angle" },
+      { id: "bloom",   left: "Blooming (colour bleed)", right: "Over-wide colour region from high gain" },
+      { id: "pvol",    left: "Partial volume",      right: "Slice-thickness averaging → false internal echoes" },
+      { id: "comet",   left: "Comet-tail",          right: "Closely spaced reverbs from small reflectors (e.g., metal)" },
+    ],
+
+    "MSK Anatomy (Upper Limb) — Muscle → Origin & Insertion": [
+      { id: "ul_bicepsB",  left: "Biceps brachii", right: "O: Supraglenoid tubercle (LH), coracoid process (SH); I: Radial tuberosity, bicipital aponeurosis" },
+      { id: "ul_tricepsB", left: "Triceps brachii", right: "O: Infraglenoid tubercle (LH), posterior humerus (Lat/Med heads); I: Olecranon process" },
+      { id: "ul_deltoid",  left: "Deltoid", right: "O: Lateral clavicle, acromion, spine of scapula; I: Deltoid tuberosity" },
+      { id: "ul_suprasp",  left: "Supraspinatus", right: "O: Supraspinous fossa; I: Greater tubercle (superior facet)" },
+      { id: "ul_infrasp",  left: "Infraspinatus", right: "O: Infraspinous fossa; I: Greater tubercle (middle facet)" },
+      { id: "ul_subscap",  left: "Subscapularis", right: "O: Subscapular fossa; I: Lesser tubercle" },
+      { id: "ul_teresMin", left: "Teres minor", right: "O: Lateral border of scapula; I: Greater tubercle (inferior facet)" },
+      { id: "ul_teresMaj", left: "Teres major", right: "O: Inferior angle of scapula; I: Medial lip of intertubercular groove" },
+      { id: "ul_brach",    left: "Brachialis", right: "O: Distal anterior humerus; I: Ulnar tuberosity, coronoid process" },
+      { id: "ul_fcu",      left: "Flexor carpi ulnaris", right: "O: Medial epicondyle & olecranon; I: Pisiform, hook of hamate, base 5th metacarpal" },
+      { id: "ul_ecrl",     left: "Extensor carpi radialis longus", right: "O: Lateral supracondylar ridge; I: Base 2nd metacarpal" },
+      { id: "ul_sant",     left: "Serratus anterior", right: "O: Ribs 1–8/9; I: Anterior medial border of scapula" },
+    ],
+
+    "MSK Anatomy (Lower Limb) — Muscle → Origin & Insertion": [
+      { id: "ll_recFem",   left: "Rectus femoris", right: "O: AIIS & superior acetabular rim; I: Tibial tuberosity via patellar ligament" },
+      { id: "ll_vastusLat",left: "Vastus lateralis", right: "O: Greater trochanter & linea aspera; I: Tibial tuberosity via patella" },
+      { id: "ll_vastusMed",left: "Vastus medialis", right: "O: Linea aspera & intertrochanteric line; I: Tibial tuberosity via patella" },
+      { id: "ll_bicFem",   left: "Biceps femoris", right: "O: Ischial tuberosity (LH), linea aspera (SH); I: Head of fibula" },
+      { id: "ll_semiten",  left: "Semitendinosus", right: "O: Ischial tuberosity; I: Pes anserinus (prox. medial tibia)" },
+      { id: "ll_semimem",  left: "Semimembranosus", right: "O: Ischial tuberosity; I: Posterior medial tibial condyle" },
+      { id: "ll_tibAnt",   left: "Tibialis anterior", right: "O: Lateral tibia & IO membrane; I: Medial cuneiform, base 1st metatarsal" },
+      { id: "ll_fibLong",  left: "Fibularis (peroneus) longus", right: "O: Prox. lateral fibula; I: Medial cuneiform & base 1st metatarsal (plantar)" },
+      { id: "ll_gastroc",  left: "Gastrocnemius", right: "O: Medial & lateral femoral condyles; I: Calcaneal tendon (posterior calcaneus)" },
+      { id: "ll_soleus",   left: "Soleus", right: "O: Posterior tibia & fibula; I: Calcaneal tendon (posterior calcaneus)" },
+      { id: "ll_gluteMed", left: "Gluteus medius", right: "O: Lateral ilium; I: Greater trochanter (lateral)" },
+      { id: "ll_gluteMin", left: "Gluteus minimus", right: "O: Lateral ilium; I: Greater trochanter (anterior)" },
+    ],
+
+    "MSK Anatomy (Trunk/Core) — Muscle → Origin & Insertion": [
+      { id: "tr_latDorsi", left: "Latissimus dorsi", right: "O: SP T7–L5, thoracolumbar fascia, iliac crest; I: Floor of intertubercular groove" },
+      { id: "tr_pecMaj",   left: "Pectoralis major", right: "O: Clavicle, sternum, costal cartilages 1–6; I: Lateral lip of intertubercular groove" },
+      { id: "tr_trap",     left: "Trapezius", right: "O: Occiput, nuchal lig., SP C7–T12; I: Lateral clavicle, acromion, scapular spine" },
+      { id: "tr_rhomboid", left: "Rhomboid major", right: "O: SP T2–T5; I: Medial border of scapula (spine→inferior angle)" },
+      { id: "tr_rectAbd",  left: "Rectus abdominis", right: "O: Pubic crest & symphysis; I: Xiphoid process & costal cartilages 5–7" },
+      { id: "tr_extObl",   left: "External oblique", right: "O: Ribs 5–12; I: Linea alba, iliac crest, pubic tubercle" },
+      { id: "tr_intObl",   left: "Internal oblique", right: "O: Thoracolumbar fascia, iliac crest, inguinal lig.; I: Ribs 10–12, linea alba, pubis" },
+      { id: "tr_qLumb",    left: "Quadratus lumborum", right: "O: Iliac crest & iliolumbar lig.; I: 12th rib & TP L1–L4" },
+      { id: "tr_iliocost", left: "Erector spinae (Iliocostalis)", right: "O: Iliac crest & sacrum; I: Angles of ribs, cervical TP" },
+      { id: "tr_serAnt",   left: "Serratus anterior", right: "O: Ribs 1–8/9; I: Anterior medial border of scapula" },
+      { id: "tr_pecMin",   left: "Pectoralis minor", right: "O: Ribs 3–5; I: Coracoid process" },
+      { id: "tr_lSerrPost",left: "Serratus posterior inferior", right: "O: SP T11–L2; I: Ribs 9–12 (inferior borders)" },
+    ],
+  };
+
+  // Dist ractors
+  const DISTRACTORS = {
+    "MSK — Special Tests": [
+      { id: "mills", left: "Mill’s Test (LE)" },
+      { id: "spurling", left: "Spurling Test" },
+      { id: "adson", left: "Adson’s (TOS)" },
+      { id: "trend", left: "Trendelenburg Sign" },
+      { id: "noble", left: "Noble Compression" },
+    ],
+    "Ultrasound Physics — Concept → Definition": [
+      { id: "hertz", left: "Hertz (Hz)" },
+      { id: "frame", left: "Frame rate" },
+      { id: "fnum",  left: "f-number (aperture)" },
+      { id: "erg",   left: "Ergonomics" },
+    ],
+    "Artefacts — Name → Appearance": [
+      { id: "moire",  left: "Moiré pattern" },
+      { id: "band",   left: "Banding" },
+      { id: "zebra",  left: "Zebra artifact" },
+      { id: "streak", left: "Streak artifact" },
+    ],
+    "MSK Anatomy (Upper Limb) — Muscle → Origin & Insertion": [
+      { id: "ul_palLong", left: "Palmaris longus" },
+      { id: "ul_fcRad",   left: "Flexor carpi radialis" },
+      { id: "ul_apl",     left: "Abductor pollicis longus" },
+      { id: "ul_fpl",     left: "Flexor pollicis longus" },
+      { id: "ul_pronTer", left: "Pronator teres" },
+    ],
+    "MSK Anatomy (Lower Limb) — Muscle → Origin & Insertion": [
+      { id: "ll_sart", left: "Sartorius" },
+      { id: "ll_tfl",  left: "Tensor fasciae latae" },
+      { id: "ll_addMag", left: "Adductor magnus" },
+      { id: "ll_pop",  left: "Popliteus" },
+      { id: "ll_fdl",  left: "Flexor digitorum longus" },
+    ],
+    "MSK Anatomy (Trunk/Core) — Muscle → Origin & Insertion": [
+      { id: "tr_multif", left: "Multifidus" },
+      { id: "tr_rotatores", left: "Rotatores" },
+      { id: "tr_transAbd", left: "Transversus abdominis" },
+      { id: "tr_levScap",  left: "Levator scapulae" },
+      { id: "tr_subclav",  left: "Subclavius" },
+    ],
+  };
+
+  // Mixed topic
+  TOPICS["MSK Anatomy — Mixed (All Regions)"] = [
+    ...TOPICS["MSK Anatomy (Upper Limb) — Muscle → Origin & Insertion"],
+    ...TOPICS["MSK Anatomy (Lower Limb) — Muscle → Origin & Insertion"],
+    ...TOPICS["MSK Anatomy (Trunk/Core) — Muscle → Origin & Insertion"],
+  ];
+  DISTRACTORS["MSK Anatomy — Mixed (All Regions)"] = [
+    ...DISTRACTORS["MSK Anatomy (Upper Limb) — Muscle → Origin & Insertion"].slice(0,2),
+    ...DISTRACTORS["MSK Anatomy (Lower Limb) — Muscle → Origin & Insertion"].slice(0,2),
+    ...DISTRACTORS["MSK Anatomy (Trunk/Core) — Muscle → Origin & Insertion"].slice(0,2),
   ];
 
-  // --- State ---
-  let placed = {}; // targetId -> cardId
+  // =========================
+  // Persistent Stats (localStorage)
+  // =========================
+  const LS_KEY = "mixMatchStats_v1";
+  function loadStats(){ try{ return JSON.parse(localStorage.getItem(LS_KEY)) || {}; }catch(e){ return {}; } }
+  function saveStats(stats){ localStorage.setItem(LS_KEY, JSON.stringify(stats)); }
+  function getTopicStats(topic){
+    const base = loadStats();
+    return base[topic] || { rounds:0, perfects:0, bestTime:null, totalCorrect:0, totalPossible:0 };
+  }
+  function setTopicStats(topic, s){
+    const base = loadStats();
+    base[topic] = s; saveStats(base);
+  }
+
+  // =========================
+  // State & Elements
+  // =========================
+  let currentTopic = Object.keys(TOPICS)[0];
+  let hard = false;
+  let currentPairs = [];
+  let placed = {};         // targetId -> cardId
   let dragData = null;
 
-  // Timer state
+  // Timer
   let timerActive = false;
-  let timerSecs = 120; // 2:00
+  let timerSecs = 120;
   let timerHandle = null;
 
-  // --- Elements ---
-  const bankEl    = document.getElementById('bank');
-  const targetsEl = document.getElementById('targets');
-  const scoreEl   = document.getElementById('score');
-  const toastEl   = document.getElementById('toast');
-  const confettiEl= document.getElementById('confetti');
-
+  // Elements
+  const topicSelect = document.getElementById('topicSelect');
+  const hardMode   = document.getElementById('hardMode');
+  const bankEl     = document.getElementById('bank');
+  const targetsEl  = document.getElementById('targets');
+  const scoreEl    = document.getElementById('score');
+  const toastEl    = document.getElementById('toast');
+  const confettiEl = document.getElementById('confetti');
   const shuffleBtn = document.getElementById('shuffleBtn');
   const resetBtn   = document.getElementById('resetBtn');
   const checkBtn   = document.getElementById('checkBtn');
   const timerBtn   = document.getElementById('timerBtn');
   const timerReadout = document.getElementById('timerReadout');
+  const sRounds = document.getElementById('sRounds');
+  const sPerfects = document.getElementById('sPerfects');
+  const sBest = document.getElementById('sBest');
+  const sAcc = document.getElementById('sAcc');
 
-  // --- Helpers ---
+  // =========================
+  // Helpers
+  // =========================
   const rand = (arr) => arr.map(v=>[Math.random(),v]).sort((a,b)=>a[0]-b[0]).map(x=>x[1]);
+  const mmss = (s)=>{ const m = Math.floor(s/60).toString(); const ss = (s%60).toString().padStart(2,'0'); return `${m}:${ss}`; };
 
   function showToast(msg, ms=1600){
     toastEl.textContent = msg;
@@ -240,10 +470,13 @@
     showToast._t = setTimeout(()=> toastEl.classList.remove('show'), ms);
   }
 
-  function mmss(s){
-    const m = Math.floor(s/60).toString();
-    const ss = (s%60).toString().padStart(2,'0');
-    return `${m}:${ss}`;
+  function setTimerForMode(){
+    timerSecs = hard ? 60 : 120; // Hard mode = 60s, Normal = 120s
+    timerReadout.textContent = '—:—';
+    timerBtn.textContent = 'Start';
+    timerBtn.setAttribute('aria-pressed','false');
+    if (timerHandle){ clearInterval(timerHandle); timerHandle=null; }
+    timerActive=false;
   }
 
   function startTimer(){
@@ -256,22 +489,19 @@
       timerSecs--;
       timerReadout.textContent = mmss(Math.max(timerSecs,0));
       if(timerSecs<=0){
-        stopTimer();
+        stopTimer(false);
         showToast('Time! ⏰');
         revealIncorrectFlash();
       }
     },1000);
   }
-  function stopTimer(reset=true){
+  function stopTimer(resetToMode=true){
     timerActive = false;
     timerBtn.setAttribute('aria-pressed','false');
-    timerBtn.textContent = 'Start 2:00';
+    timerBtn.textContent = 'Start';
     clearInterval(timerHandle);
     timerHandle = null;
-    if(reset){
-      timerSecs = 120;
-      timerReadout.textContent = '—:—';
-    }
+    if(resetToMode) setTimerForMode();
   }
 
   function revealIncorrectFlash(){
@@ -283,18 +513,74 @@
     });
   }
 
-  function makeCard(pair){
-    const el = document.createElement('div');
-    el.className = 'card';
-    el.draggable = true;
-    el.dataset.cardId = pair.id;
-    el.textContent = pair.left;
+  function countCorrect(){ let c=0; for(const p of currentPairs){ if(placed[p.id]===p.id) c++; } return c; }
+  function updateScore(){ scoreEl.textContent = `${countCorrect()} / ${currentPairs.length} correct`; }
 
-    // Desktop drag events
+  function loadIcon(topic){ return TOPIC_ICONS[topic] ? `${TOPIC_ICONS[topic]}  ` : ""; }
+
+  function updateStatsBar(){
+    const st = getTopicStats(currentTopic);
+    sRounds.textContent = `Rounds: ${st.rounds}`;
+    sPerfects.textContent = `Perfects: ${st.perfects}`;
+    sBest.textContent = `Best time: ${st.bestTime==null ? '—' : mmss(st.bestTime)}`;
+    const acc = st.totalPossible ? Math.round(100*st.totalCorrect/st.totalPossible) : null;
+    sAcc.textContent = `Avg. accuracy: ${acc==null ? '—' : acc+'%'}`;
+  }
+
+  function recordRound({perfect, timeUsed, correct, possible}){
+    const st = getTopicStats(currentTopic);
+    st.rounds += 1;
+    if(perfect){
+      st.perfects += 1;
+      if(timeUsed!=null && (st.bestTime==null || timeUsed < st.bestTime)){
+        st.bestTime = timeUsed;
+      }
+    }
+    st.totalCorrect += correct;
+    st.totalPossible += possible;
+    setTopicStats(currentTopic, st);
+    updateStatsBar();
+  }
+
+  function burstConfetti(n=140){
+    for(let i=0;i<n;i++){
+      const bit = document.createElement('i');
+      const hue = Math.floor(200 + Math.random()*140);
+      const left = Math.random()*100;
+      const delay = Math.random()*80;
+      bit.style.left = left + 'vw';
+      bit.style.background = `hsl(${hue} 100% 70%)`;
+      bit.style.transform = `translateY(-10px) rotate(${Math.random()*360}deg)`;
+      bit.style.animationDelay = delay+'ms';
+      confettiEl.appendChild(bit);
+      setTimeout(()=> bit.remove(), 1600 + delay);
+    }
+  }
+
+  // =========================
+  // Build UI
+  // =========================
+  function populateTopics(){
+    topicSelect.innerHTML = '';
+    Object.keys(TOPICS).forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t; opt.textContent = `${loadIcon(t)}${t}`;
+      topicSelect.appendChild(opt);
+    });
+    topicSelect.value = currentTopic;
+  }
+
+  function makeCard(item, isDistractor=false){
+    const el = document.createElement('div');
+    el.className = 'card' + (isDistractor ? ' distractor' : '');
+    el.draggable = true;
+    el.dataset.cardId = item.id;
+    el.textContent = item.left;
+
     el.addEventListener('dragstart', e => {
-      dragData = { type:'card', cardId: pair.id };
+      dragData = { type:'card', cardId: item.id, distractor: isDistractor };
       el.classList.add('dragging');
-      e.dataTransfer.setData('text/plain', pair.id);
+      e.dataTransfer.setData('text/plain', item.id);
       e.dataTransfer.effectAllowed = 'move';
     });
     el.addEventListener('dragend', () => {
@@ -302,8 +588,7 @@
       el.classList.remove('dragging');
     });
 
-    // Touch/Pointer drag (mobile)
-    enablePointerDrag(el, pair.id);
+    enablePointerDrag(el, item.id, isDistractor);
     return el;
   }
 
@@ -318,10 +603,9 @@
 
     const slot = document.createElement('div');
     slot.className = 'slot';
-    slot.textContent = 'Drop test here';
+    slot.textContent = 'Drop here';
     slot.dataset.accepts = pair.id;
 
-    // DnD handlers for both target and slot (desktop)
     [target, slot].forEach(el=>{
       el.addEventListener('dragover', e => {
         if(!dragData || dragData.type!=='card') return;
@@ -335,7 +619,7 @@
         el.classList.remove('over');
         const cardId = e.dataTransfer.getData('text/plain') || (dragData && dragData.cardId);
         if(!cardId) return;
-        placeCard(cardId, pair.id);
+        placeCard(cardId, pair.id, dragData?.distractor);
       });
     });
 
@@ -349,50 +633,54 @@
     targetsEl.innerHTML = '';
     placed = {};
 
-    // Build bank (shuffled on load)
-    const shuffled = rand(PAIRS.slice());
-    shuffled.forEach(p => bankEl.appendChild(makeCard(p)));
+    const base = TOPICS[currentTopic].slice();
+    currentPairs = base.slice();
+    currentPairs.forEach(p => targetsEl.appendChild(makeTarget(p)));
 
-    // Build targets (stable order)
-    PAIRS.forEach(p => targetsEl.appendChild(makeTarget(p)));
+    let bankItems = rand(base.slice());
+    if(hard && DISTRACTORS[currentTopic]){
+      const d = rand(DISTRACTORS[currentTopic].slice()).slice(0, Math.min(3, DISTRACTORS[currentTopic].length));
+      d.forEach(di => bankEl.appendChild(makeCard(di, true)));
+    }
+    bankItems.forEach(p => bankEl.appendChild(makeCard(p, false)));
 
     updateScore();
+    updateStatsBar();
   }
 
-  function placeCard(cardId, targetId){
+  function placeCard(cardId, targetId, isDistractor=false){
+    const slot = findSlotEl(targetId);
     const cardEl = findCardEl(cardId);
-    if(!cardEl) return;
+    if(!slot || !cardEl) return;
 
-    // Free previous placements of this card
+    if(isDistractor){
+      showToast('That one doesn’t match any target.');
+      returnCardToBank(cardId);
+      return;
+    }
+
     for (const [tId, cId] of Object.entries(placed)){
       if(cId === cardId){ clearSlot(tId); }
     }
-    // If target already filled, return its card to the bank
-    if (placed[targetId]) {
-      returnCardToBank(placed[targetId]);
-    }
+    if (placed[targetId]) returnCardToBank(placed[targetId]);
 
-    const slot = findSlotEl(targetId);
     slot.textContent = '';
     slot.classList.add('filled');
     slot.appendChild(cardEl);
     placed[targetId] = cardId;
-    updateScore();
 
-    // Auto-win check on each placement
-    const correct = countCorrect();
-    if(correct === PAIRS.length){
-      celebrateAndReset();
-    }
+    updateScore();
+    maybeAutoWin();
   }
+
+  function findCardEl(cardId){ return document.querySelector(`.card[data-card-id="${cardId}"]`); }
+  function findSlotEl(targetId){ return document.querySelector(`.target[data-target-id="${targetId}"] .slot`); }
 
   function clearSlot(targetId){
     const slot = findSlotEl(targetId);
     if(!slot) return;
-    if(slot.firstElementChild){
-      bankEl.appendChild(slot.firstElementChild);
-    }
-    slot.textContent = 'Drop test here';
+    if(slot.firstElementChild){ bankEl.appendChild(slot.firstElementChild); }
+    slot.textContent = 'Drop here';
     slot.classList.remove('filled');
     delete placed[targetId];
   }
@@ -403,7 +691,8 @@
     bankEl.appendChild(cardEl);
     for (const [tId, cId] of Object.entries(placed)){
       if(cId === cardId){
-        slotReset(tId);
+        const slot = findSlotEl(tId);
+        if(slot){ slot.textContent = 'Drop here'; slot.classList.remove('filled'); }
         delete placed[tId];
         break;
       }
@@ -411,34 +700,21 @@
     updateScore();
   }
 
-  function slotReset(targetId){
-    const slot = findSlotEl(targetId);
-    if(slot){
-      slot.textContent = 'Drop test here';
-      slot.classList.remove('filled');
+  function maybeAutoWin(){
+    const correct = countCorrect();
+    if(correct === currentPairs.length){
+      const timeUsed = (hard ? 60 : 120) - timerSecs;
+      recordRound({ perfect:true, timeUsed, correct, possible:currentPairs.length });
+      burstConfetti(160);
+      showToast('Perfect! 🎉 New round in 2s…', 2000);
+      stopTimer(true);
+      setTimeout(() => { render(); }, 2000);
     }
   }
 
-  function findCardEl(cardId){
-    return document.querySelector(`.card[data-card-id="${cardId}"]`);
-  }
-  function findSlotEl(targetId){
-    return document.querySelector(`.target[data-target-id="${targetId}"] .slot`);
-  }
-
-  function countCorrect(){
-    let correct = 0;
-    for (const pair of PAIRS){
-      if(placed[pair.id] === pair.id) correct++;
-    }
-    return correct;
-  }
-
-  function updateScore(){
-    scoreEl.textContent = `${countCorrect()} / ${PAIRS.length} correct`;
-  }
-
-  // --- Controls ---
+  // =========================
+  // Controls
+  // =========================
   shuffleBtn.addEventListener('click', () => {
     Object.keys(placed).forEach(clearSlot);
     const cards = [...bankEl.children];
@@ -450,6 +726,7 @@
 
   resetBtn.addEventListener('click', () => {
     render();
+    stopTimer(true);
     showToast('Board reset.');
   });
 
@@ -462,15 +739,32 @@
       setTimeout(() => t.style.boxShadow = 'none', 900);
     });
     const correct = countCorrect();
-    showToast(correct === PAIRS.length ? 'Perfect! 🎉' : 'Keep going!');
-    if(correct === PAIRS.length) celebrateAndReset();
+    const possible = currentPairs.length;
+    if(correct !== possible){
+      recordRound({ perfect:false, timeUsed:null, correct, possible });
+    } else {
+      maybeAutoWin();
+    }
+    showToast(correct === possible ? 'Perfect! 🎉' : `You got ${correct}/${possible}`);
   });
 
-  timerBtn.addEventListener('click', () => {
-    if(!timerActive) startTimer(); else stopTimer();
+  timerBtn.addEventListener('click', () => { if(!timerActive) startTimer(); else stopTimer(); });
+
+  topicSelect.addEventListener('change', () => {
+    currentTopic = topicSelect.value;
+    render();
+    stopTimer(true);
+    showToast(`Topic: ${currentTopic}`);
   });
 
-  // Allow returning a card to the bank by dropping it anywhere in the bank (desktop)
+  hardMode.addEventListener('change', () => {
+    hard = hardMode.checked;
+    setTimerForMode();
+    render();
+    showToast(hard ? 'Hard mode ON' : 'Hard mode OFF');
+  });
+
+  // Return to bank via desktop drag
   bankEl.addEventListener('dragover', e => {
     if(!dragData || dragData.type!=='card') return;
     e.preventDefault();
@@ -485,10 +779,12 @@
     returnCardToBank(cardId);
   });
 
-  // --- Mobile pointer drag with EDGE SCROLL ---
-  function enablePointerDrag(cardEl, cardId){
+  // =========================
+  // Mobile pointer drag + EDGE SCROLL
+  // =========================
+  function enablePointerDrag(cardEl, cardId, isDistractor){
     let ghost = null;
-    let autoScrollDir = 0; // -1 up, +1 down, 0 none
+    let autoScrollDir = 0;
     let autoScrollRAF = null;
 
     const onPointerDown = (e) => {
@@ -503,7 +799,7 @@
 
       positionGhost(e.clientX, e.clientY);
       cardEl.classList.add('dragging');
-      dragData = { type:'card', cardId };
+      dragData = { type:'card', cardId, distractor:isDistractor };
 
       startAutoScroll();
     };
@@ -512,7 +808,6 @@
       if(!ghost) return;
       positionGhost(e.clientX, e.clientY);
 
-      // Edge scroll thresholds
       const edge = 80;
       if(e.clientY > window.innerHeight - edge) autoScrollDir = +1;
       else if(e.clientY < edge) autoScrollDir = -1;
@@ -531,7 +826,7 @@
       if(dropEl){
         const target = dropEl.classList.contains('target') ? dropEl : dropEl.closest('.target');
         if(target && target.dataset.targetId){
-          placeCard(cardId, target.dataset.targetId);
+          placeCard(cardId, target.dataset.targetId, isDistractor);
           return;
         }
       }
@@ -552,19 +847,14 @@
     function startAutoScroll(){
       if(autoScrollRAF) return;
       const step = () => {
-        if(autoScrollDir !== 0){
-          window.scrollBy(0, autoScrollDir * 8); // speed
-        }
+        if(autoScrollDir !== 0){ window.scrollBy(0, autoScrollDir * 8); }
         autoScrollRAF = requestAnimationFrame(step);
       };
       autoScrollRAF = requestAnimationFrame(step);
     }
 
     function stopAutoScroll(){
-      if(autoScrollRAF){
-        cancelAnimationFrame(autoScrollRAF);
-        autoScrollRAF = null;
-      }
+      if(autoScrollRAF){ cancelAnimationFrame(autoScrollRAF); autoScrollRAF = null; }
       autoScrollDir = 0;
     }
 
@@ -583,34 +873,17 @@
     window.addEventListener('pointercancel', onPointerUp);
   }
 
-  // --- Celebration + Auto Reset ---
-  function celebrateAndReset(){
-    // Confetti burst
-    burstConfetti(120);
-    showToast('Perfect! 🎉 New round in 2s…', 2000);
-    // Stop timer but keep readout until reset
-    stopTimer(true);
-    setTimeout(() => render(), 2000);
-  }
-
-  function burstConfetti(n=80){
-    // Create bits
-    for(let i=0;i<n;i++){
-      const bit = document.createElement('i');
-      const hue = Math.floor(200 + Math.random()*140); // cool range
-      const left = Math.random()*100;
-      const delay = Math.random()*80; // ms stagger
-      bit.style.left = left + 'vw';
-      bit.style.background = `hsl(${hue} 100% 70%)`;
-      bit.style.transform = `translateY(-10px) rotate(${Math.random()*360}deg)`;
-      bit.style.animationDelay = delay+'ms';
-      confettiEl.appendChild(bit);
-      setTimeout(()=> bit.remove(), 1600 + delay);
-    }
-  }
-
-  // Initial render
+  // =========================
+  // Init
+  // =========================
+  populateTopics();
+  setTimerForMode();
   render();
+
+  // HOW TO ADD NEW TOPICS:
+  // Add a new key to TOPICS with [{id,left,right}...].
+  // (Optional) Add matching DISTRACTORS[topic] = [{id,left}...].
+  // Add an icon (emoji) in TOPIC_ICONS if you want one in the selector.
 })();
 </script>
 </body>
