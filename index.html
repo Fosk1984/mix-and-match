@@ -52,13 +52,13 @@
   }
   button:hover{ transform:translateY(-1px); border-color:#3b4591; }
   button:active{ transform:translateY(0); }
-  .ghost{ opacity:.6 }
+  .timer{
+    display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius:12px;
+    border:1px solid var(--border); background:rgba(23,28,58,.6); font-weight:800;
+  }
 
   .grid{
-    display:grid;
-    grid-template-columns: 1fr 1fr;
-    gap:16px;
-    align-items:start;
+    display:grid; grid-template-columns: 1fr 1fr; gap:16px; align-items:start;
   }
 
   .column{
@@ -122,7 +122,20 @@
   }
   .toast.show{ display:block; }
 
-  /* Mobile layout polish */
+  /* Confetti bits */
+  .confetti{
+    position:fixed; left:0; top:0; width:100%; height:0; overflow:visible; z-index:60; pointer-events:none;
+  }
+  .confetti i{
+    position:absolute; top:-10px; width:8px; height:14px; border-radius:2px;
+    background: white; opacity:.9;
+    animation: fall 1400ms linear forwards;
+  }
+  @keyframes fall{
+    to{ transform: translateY(110vh) rotate(720deg); opacity:1; }
+  }
+
+  /* Mobile polish */
   @media (max-width: 900px){
     .grid{ grid-template-columns: 1fr; }
     .slot{ min-width:unset; width:100%; min-height:48px; }
@@ -131,7 +144,6 @@
     .card{ font-size:15px; padding:16px }
   }
 
-  /* Floating drag clone for touch */
   .drag-ghost{
     position:fixed; left:0; top:0; z-index:9999; pointer-events:none;
     transform:translate(-9999px,-9999px) scale(1.02);
@@ -150,6 +162,10 @@
         <button id="shuffleBtn" title="Shuffle bank items">Shuffle</button>
         <button id="resetBtn" title="Reset everything">Reset</button>
         <button id="checkBtn" title="Check your matches">Check answers</button>
+        <span class="timer">
+          <button id="timerBtn" aria-pressed="false" title="Start/stop 2-minute timer">Start 2:00</button>
+          <span id="timerReadout">—:—</span>
+        </span>
       </div>
     </header>
 
@@ -174,6 +190,7 @@
   </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <div class="confetti" id="confetti"></div>
 
 <script>
 (() => {
@@ -195,15 +212,23 @@
   let placed = {}; // targetId -> cardId
   let dragData = null;
 
+  // Timer state
+  let timerActive = false;
+  let timerSecs = 120; // 2:00
+  let timerHandle = null;
+
   // --- Elements ---
   const bankEl    = document.getElementById('bank');
   const targetsEl = document.getElementById('targets');
   const scoreEl   = document.getElementById('score');
   const toastEl   = document.getElementById('toast');
+  const confettiEl= document.getElementById('confetti');
 
   const shuffleBtn = document.getElementById('shuffleBtn');
   const resetBtn   = document.getElementById('resetBtn');
   const checkBtn   = document.getElementById('checkBtn');
+  const timerBtn   = document.getElementById('timerBtn');
+  const timerReadout = document.getElementById('timerReadout');
 
   // --- Helpers ---
   const rand = (arr) => arr.map(v=>[Math.random(),v]).sort((a,b)=>a[0]-b[0]).map(x=>x[1]);
@@ -213,6 +238,49 @@
     toastEl.classList.add('show');
     clearTimeout(showToast._t);
     showToast._t = setTimeout(()=> toastEl.classList.remove('show'), ms);
+  }
+
+  function mmss(s){
+    const m = Math.floor(s/60).toString();
+    const ss = (s%60).toString().padStart(2,'0');
+    return `${m}:${ss}`;
+  }
+
+  function startTimer(){
+    if(timerActive) return;
+    timerActive = true;
+    timerBtn.setAttribute('aria-pressed','true');
+    timerBtn.textContent = 'Stop';
+    timerReadout.textContent = mmss(timerSecs);
+    timerHandle = setInterval(()=>{
+      timerSecs--;
+      timerReadout.textContent = mmss(Math.max(timerSecs,0));
+      if(timerSecs<=0){
+        stopTimer();
+        showToast('Time! ⏰');
+        revealIncorrectFlash();
+      }
+    },1000);
+  }
+  function stopTimer(reset=true){
+    timerActive = false;
+    timerBtn.setAttribute('aria-pressed','false');
+    timerBtn.textContent = 'Start 2:00';
+    clearInterval(timerHandle);
+    timerHandle = null;
+    if(reset){
+      timerSecs = 120;
+      timerReadout.textContent = '—:—';
+    }
+  }
+
+  function revealIncorrectFlash(){
+    document.querySelectorAll('.target').forEach(t => {
+      const tId = t.dataset.targetId;
+      const ok = placed[tId] === tId;
+      t.style.boxShadow = ok ? '0 0 0 2px inset rgba(51,209,122,.75)' : '0 0 0 2px inset rgba(255,107,107,.65)';
+      setTimeout(() => t.style.boxShadow = 'none', 900);
+    });
   }
 
   function makeCard(pair){
@@ -310,6 +378,12 @@
     slot.appendChild(cardEl);
     placed[targetId] = cardId;
     updateScore();
+
+    // Auto-win check on each placement
+    const correct = countCorrect();
+    if(correct === PAIRS.length){
+      celebrateAndReset();
+    }
   }
 
   function clearSlot(targetId){
@@ -352,12 +426,16 @@
     return document.querySelector(`.target[data-target-id="${targetId}"] .slot`);
   }
 
-  function updateScore(){
+  function countCorrect(){
     let correct = 0;
     for (const pair of PAIRS){
       if(placed[pair.id] === pair.id) correct++;
     }
-    scoreEl.textContent = `${correct} / ${PAIRS.length} correct`;
+    return correct;
+  }
+
+  function updateScore(){
+    scoreEl.textContent = `${countCorrect()} / ${PAIRS.length} correct`;
   }
 
   // --- Controls ---
@@ -383,13 +461,13 @@
       t.style.boxShadow = ok ? '0 0 0 2px inset rgba(51,209,122,.75)' : '0 0 0 2px inset rgba(255,107,107,.65)';
       setTimeout(() => t.style.boxShadow = 'none', 900);
     });
-
-    const correct = Object.values(placed).filter((cardId, i) => {
-      const targetId = Object.keys(placed)[i];
-      return cardId === targetId;
-    }).length;
-
+    const correct = countCorrect();
     showToast(correct === PAIRS.length ? 'Perfect! 🎉' : 'Keep going!');
+    if(correct === PAIRS.length) celebrateAndReset();
+  });
+
+  timerBtn.addEventListener('click', () => {
+    if(!timerActive) startTimer(); else stopTimer();
   });
 
   // Allow returning a card to the bank by dropping it anywhere in the bank (desktop)
@@ -407,33 +485,39 @@
     returnCardToBank(cardId);
   });
 
-  // --- Touch/Pointer drag implementation ---
+  // --- Mobile pointer drag with EDGE SCROLL ---
   function enablePointerDrag(cardEl, cardId){
-    let ghost = null, startX=0, startY=0;
+    let ghost = null;
+    let autoScrollDir = 0; // -1 up, +1 down, 0 none
+    let autoScrollRAF = null;
 
     const onPointerDown = (e) => {
-      // Only left click / primary touch
       if(e.button !== undefined && e.button !== 0) return;
       cardEl.setPointerCapture?.(e.pointerId);
       e.preventDefault();
 
-      // Create floating ghost
       ghost = cardEl.cloneNode(true);
       ghost.classList.add('drag-ghost');
       ghost.style.width = (cardEl.getBoundingClientRect().width) + 'px';
       document.body.appendChild(ghost);
 
-      startX = e.clientX; startY = e.clientY;
       positionGhost(e.clientX, e.clientY);
       cardEl.classList.add('dragging');
       dragData = { type:'card', cardId };
+
+      startAutoScroll();
     };
 
     const onPointerMove = (e) => {
       if(!ghost) return;
       positionGhost(e.clientX, e.clientY);
 
-      // Visual highlight on potential drop zones
+      // Edge scroll thresholds
+      const edge = 80;
+      if(e.clientY > window.innerHeight - edge) autoScrollDir = +1;
+      else if(e.clientY < edge) autoScrollDir = -1;
+      else autoScrollDir = 0;
+
       const dropEl = getDropTargetAt(e.clientX, e.clientY);
       document.querySelectorAll('.target, .slot').forEach(el => el.classList.remove('over'));
       if(dropEl) dropEl.classList.add('over');
@@ -445,19 +529,17 @@
       cleanupDrag();
 
       if(dropEl){
-        // Decide targetId from either .target or its parent
         const target = dropEl.classList.contains('target') ? dropEl : dropEl.closest('.target');
         if(target && target.dataset.targetId){
           placeCard(cardId, target.dataset.targetId);
           return;
         }
       }
-      // No valid drop → return to bank
       returnCardToBank(cardId);
     };
 
     function positionGhost(x,y){
-      const offset = 18; // keep finger from covering label
+      const offset = 18;
       ghost.style.transform = `translate(${x+8}px, ${y-offset}px)`;
     }
 
@@ -467,7 +549,27 @@
       return el.closest?.('.slot, .target') || null;
     }
 
+    function startAutoScroll(){
+      if(autoScrollRAF) return;
+      const step = () => {
+        if(autoScrollDir !== 0){
+          window.scrollBy(0, autoScrollDir * 8); // speed
+        }
+        autoScrollRAF = requestAnimationFrame(step);
+      };
+      autoScrollRAF = requestAnimationFrame(step);
+    }
+
+    function stopAutoScroll(){
+      if(autoScrollRAF){
+        cancelAnimationFrame(autoScrollRAF);
+        autoScrollRAF = null;
+      }
+      autoScrollDir = 0;
+    }
+
     function cleanupDrag(){
+      stopAutoScroll();
       document.querySelectorAll('.target, .slot').forEach(el => el.classList.remove('over'));
       cardEl.classList.remove('dragging');
       dragData = null;
@@ -475,14 +577,39 @@
       ghost = null;
     }
 
-    // Attach listeners
     cardEl.addEventListener('pointerdown', onPointerDown);
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp);
     window.addEventListener('pointercancel', onPointerUp);
   }
 
-  // Initial render (includes auto-shuffle of the bank)
+  // --- Celebration + Auto Reset ---
+  function celebrateAndReset(){
+    // Confetti burst
+    burstConfetti(120);
+    showToast('Perfect! 🎉 New round in 2s…', 2000);
+    // Stop timer but keep readout until reset
+    stopTimer(true);
+    setTimeout(() => render(), 2000);
+  }
+
+  function burstConfetti(n=80){
+    // Create bits
+    for(let i=0;i<n;i++){
+      const bit = document.createElement('i');
+      const hue = Math.floor(200 + Math.random()*140); // cool range
+      const left = Math.random()*100;
+      const delay = Math.random()*80; // ms stagger
+      bit.style.left = left + 'vw';
+      bit.style.background = `hsl(${hue} 100% 70%)`;
+      bit.style.transform = `translateY(-10px) rotate(${Math.random()*360}deg)`;
+      bit.style.animationDelay = delay+'ms';
+      confettiEl.appendChild(bit);
+      setTimeout(()=> bit.remove(), 1600 + delay);
+    }
+  }
+
+  // Initial render
   render();
 })();
 </script>
